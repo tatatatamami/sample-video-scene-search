@@ -23,11 +23,12 @@ public class FoundryAgentClient : IFoundryAgentClient
     public FoundryAgentClient(
         HttpClient httpClient,
         IOptions<AzureAIFoundrySettings> settings,
+        DefaultAzureCredential credential,
         ILogger<FoundryAgentClient> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
-        _credential = new DefaultAzureCredential();
+        _credential = credential;
         _logger = logger;
     }
 

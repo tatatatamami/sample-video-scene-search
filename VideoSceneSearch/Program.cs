@@ -1,3 +1,4 @@
+using Azure.Identity;
 using VideoSceneSearch.Models;
 using VideoSceneSearch.Services;
 
@@ -9,6 +10,9 @@ builder.Services.AddRazorPages();
 // Configure Azure AI Foundry settings
 builder.Services.Configure<AzureAIFoundrySettings>(
     builder.Configuration.GetSection("AzureAIFoundry"));
+
+// Register DefaultAzureCredential as singleton for reuse across requests
+builder.Services.AddSingleton<DefaultAzureCredential>();
 
 // Add HttpClient and Foundry Agent Client
 builder.Services.AddHttpClient<IFoundryAgentClient, FoundryAgentClient>();
