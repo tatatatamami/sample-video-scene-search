@@ -36,43 +36,55 @@ public class FoundryAgentClient : IFoundryAgentClient
     {
         try
         {
-            // Get access token using Entra ID
-            var tokenRequestContext = new TokenRequestContext(new[] { _settings.Scope });
-            var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
-
-            _logger.LogInformation("Obtained Entra ID token for Azure AI Foundry");
-
-            // Prepare the request payload
+            // Prepare the request payload for Azure AI Foundry Responses API
+            // Input should be a simple string based on the API error messages
             var requestBody = new
             {
-                messages = new[]
-                {
-                    new
-                    {
-                        role = "user",
-                        content = query
-                    }
-                }
+                input = query
             };
 
             var jsonContent = JsonSerializer.Serialize(requestBody);
+            _logger.LogInformation("Request body: {RequestBody}", jsonContent);
+            
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            // Create request with Bearer token
+            // Create request
             var request = new HttpRequestMessage(HttpMethod.Post, _settings.Endpoint)
             {
                 Content = content
             };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+
+            // Use API Key if available, otherwise use Entra ID
+            if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
+            {
+                _logger.LogInformation("Using API Key authentication");
+                request.Headers.Add("api-key", _settings.ApiKey);
+            }
+            else
+            {
+                _logger.LogInformation("Using Entra ID authentication");
+                var tokenRequestContext = new TokenRequestContext(new[] { _settings.Scope });
+                var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+            }
 
             _logger.LogInformation("Sending request to Azure AI Foundry Agent: {Endpoint}", _settings.Endpoint);
 
             // Send request to Foundry Agent
             var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
+            
+            // Log response details for debugging
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogInformation("Received response from Azure AI Foundry Agent");
+            _logger.LogInformation("Response status: {StatusCode}", response.StatusCode);
+            
+            // Only log first 1000 chars to avoid excessive logging
+            var logContent = responseContent.Length > 1000 
+                ? responseContent.Substring(0, 1000) + "... (truncated)" 
+                : responseContent;
+            _logger.LogInformation("Response content preview: {ResponseContent}", logContent);
+            
+            response.EnsureSuccessStatusCode();
+            _logger.LogInformation("Received successful response from Azure AI Foundry Agent");
 
             return responseContent;
         }

@@ -17,6 +17,9 @@ builder.Services.AddSingleton<DefaultAzureCredential>();
 // Add HttpClient and Foundry Agent Client
 builder.Services.AddHttpClient<IFoundryAgentClient, FoundryAgentClient>();
 
+// Add Response Parser
+builder.Services.AddSingleton<IAgentResponseParser, AgentResponseParser>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -32,6 +35,7 @@ app.UseRouting();
 app.MapPost("/api/scene-search", async (
     SearchRequest request,
     IFoundryAgentClient foundryClient,
+    IAgentResponseParser parser,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Query))
@@ -42,7 +46,8 @@ app.MapPost("/api/scene-search", async (
     try
     {
         var result = await foundryClient.SearchScenesAsync(request.Query, cancellationToken);
-        return Results.Ok(new { response = result });
+        var parsedResult = parser.ParseResponse(result);
+        return Results.Ok(parsedResult);
     }
     catch (Exception ex)
     {

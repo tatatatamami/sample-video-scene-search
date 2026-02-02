@@ -103,7 +103,7 @@
                 }
 
                 const data = await response.json();
-                displayResults(data.response);
+                displayResults(data);
             } catch (error) {
                 console.error('Error:', error);
                 resultsContainer.innerHTML = `<p class="error">エラーが発生しました: ${error.message}</p>`;
@@ -113,54 +113,98 @@
             }
         }
 
-        function displayResults(responseText) {
+        function displayResults(data) {
             try {
-                // Try to parse as JSON
-                let results;
-                try {
-                    const parsed = JSON.parse(responseText);
-                    // Handle different response structures
-                    if (Array.isArray(parsed)) {
-                        results = parsed;
-                    } else if (parsed.results) {
-                        results = parsed.results;
-                    } else if (parsed.choices && parsed.choices[0]) {
-                        // Azure AI response format
-                        const content = parsed.choices[0].message?.content || parsed.choices[0].text;
-                        results = JSON.parse(content);
-                    } else {
-                        results = [parsed];
-                    }
-                } catch {
-                    // If not JSON, display as text
-                    resultsContainer.innerHTML = `<pre class="json-response">${escapeHtml(responseText)}</pre>`;
-                    return;
-                }
-
-                if (!results || results.length === 0) {
+                if (!data || (!data.candidates && !data.rawResponse)) {
                     resultsContainer.innerHTML = '<p class="no-results">検索結果が見つかりませんでした</p>';
                     return;
                 }
 
-                // Display JSON response
-                resultsContainer.innerHTML = '<h3>エージェント応答（JSON）</h3>';
-                resultsContainer.innerHTML += `<pre class="json-response">${escapeHtml(JSON.stringify(results, null, 2))}</pre>`;
+                resultsContainer.innerHTML = '';
 
-                // Display results as cards
-                resultsContainer.innerHTML += '<h3>検索結果一覧</h3>';
-                const cardsContainer = document.createElement('div');
-                cardsContainer.className = 'results-cards';
+                // Display summary
+                if (data.summary && data.summary.totalCount > 0) {
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'scene-summary';
+                    summaryDiv.innerHTML = `
+                        <h3>該当シーン候補: ${data.summary.totalCount}件</h3>
+                        <p class="confidence-breakdown">(High: ${data.summary.highCount} / Medium: ${data.summary.mediumCount} / Low: ${data.summary.lowCount})</p>
+                    `;
+                    resultsContainer.appendChild(summaryDiv);
+                }
 
-                results.forEach((result, index) => {
-                    const card = createResultCard(result, index);
-                    cardsContainer.appendChild(card);
-                });
+                // Display candidates
+                if (data.candidates && data.candidates.length > 0) {
+                    const candidatesHeader = document.createElement('h3');
+                    candidatesHeader.textContent = 'シーン候補（関連度上位から最大5件）';
+                    candidatesHeader.style.marginTop = '2rem';
+                    resultsContainer.appendChild(candidatesHeader);
 
-                resultsContainer.appendChild(cardsContainer);
+                    data.candidates.forEach((candidate, index) => {
+                        const candidateDiv = createCandidateCard(candidate, index);
+                        resultsContainer.appendChild(candidateDiv);
+                    });
+                }
+
+                // Display raw JSON response (collapsible)
+                if (data.rawResponse) {
+                    const jsonSection = document.createElement('details');
+                    jsonSection.style.marginTop = '2rem';
+                    jsonSection.innerHTML = `
+                        <summary style="cursor: pointer; font-weight: bold; padding: 0.5rem; background: #f0f0f0; border-radius: 4px;">
+                            エージェント応答（JSON）
+                        </summary>
+                        <pre class="json-response">${escapeHtml(data.rawResponse)}</pre>
+                    `;
+                    resultsContainer.appendChild(jsonSection);
+                }
             } catch (error) {
                 console.error('Error displaying results:', error);
-                resultsContainer.innerHTML = `<pre class="json-response">${escapeHtml(responseText)}</pre>`;
+                resultsContainer.innerHTML = `<p class="error">結果の表示中にエラーが発生しました: ${error.message}</p>`;
             }
+        }
+
+        function createCandidateCard(candidate, index) {
+            const card = document.createElement('div');
+            card.className = 'candidate-card';
+
+            const confidenceClass = candidate.confidence?.toLowerCase() || 'unknown';
+            
+            card.innerHTML = `
+                <div class="candidate-header">
+                    <div>
+                        <div class="candidate-video-id">Video ID: ${escapeHtml(candidate.videoId || '')}</div>
+                        <div class="candidate-title">Title: ${escapeHtml(candidate.title || '')}</div>
+                        <div class="candidate-timestamp">
+                            Timestamp: <strong>${escapeHtml(candidate.timestamp || '')}</strong> / 
+                            信頼度: <span class="confidence-badge confidence-${confidenceClass}">${escapeHtml(candidate.confidence || '')}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="candidate-body">
+                    <p><strong>Description:</strong> ${escapeHtml(candidate.description || '')}</p>
+                    ${candidate.evidence ? `<p><strong>根拠:</strong> ${escapeHtml(candidate.evidence)}</p>` : ''}
+                    ${candidate.reason ? `<p><strong>理由:</strong> ${escapeHtml(candidate.reason)}</p>` : ''}
+                    ${candidate.reference ? `<p><strong>参照:</strong> ${escapeHtml(candidate.reference)}</p>` : ''}
+                </div>
+                ${candidate.startTime > 0 ? `
+                <div class="candidate-actions">
+                    <button class="play-button" data-video-id="${escapeHtml(candidate.videoId)}" 
+                            data-start="${candidate.startTime}" data-title="${escapeHtml(candidate.title)}">
+                        ▶️ 動画を再生
+                    </button>
+                </div>
+                ` : ''}
+            `;
+
+            const playButton = card.querySelector('.play-button');
+            if (playButton) {
+                playButton.addEventListener('click', () => {
+                    playVideo(candidate.videoId, candidate.startTime, candidate.title, candidate.description);
+                });
+            }
+
+            return card;
         }
 
         function createResultCard(result, index) {

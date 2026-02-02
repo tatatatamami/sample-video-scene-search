@@ -273,3 +273,121 @@ section h2 {
         font-size: 1.5em;
     }
 }
+
+/* Scene Summary */
+.scene-summary {
+    background: #f0f4ff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+    margin-bottom: 2rem;
+}
+
+.scene-summary h3 {
+    color: #333;
+    font-size: 1.3em;
+    margin-bottom: 0.5rem;
+}
+
+.confidence-breakdown {
+    color: #666;
+    font-size: 1em;
+    margin: 0;
+}
+
+/* Candidate Card */
+.candidate-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s;
+}
+
+.candidate-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.candidate-header {
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.candidate-video-id {
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 0.3rem;
+}
+
+.candidate-title {
+    color: #333;
+    font-size: 1em;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.candidate-timestamp {
+    color: #555;
+    font-size: 0.95em;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.confidence-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.85em;
+}
+
+.confidence-high {
+    background-color: #4caf50;
+    color: white;
+}
+
+.confidence-medium {
+    background-color: #ff9800;
+    color: white;
+}
+
+.confidence-low {
+    background-color: #f44336;
+    color: white;
+}
+
+.confidence-unknown {
+    background-color: #9e9e9e;
+    color: white;
+}
+
+.candidate-body {
+    color: #555;
+    line-height: 1.6;
+}
+
+.candidate-body p {
+    margin-bottom: 0.8rem;
+}
+
+.candidate-body strong {
+    color: #333;
+    font-weight: 600;
+}
+
+.candidate-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.candidate-actions .play-button {
+    width: auto;
+    padding: 0.6rem 1.5rem;
+}
+
