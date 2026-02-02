@@ -1,0 +1,233 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "動画シーン検索";
+}
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 動画シーン検索</h1>
+            <p>Azure AI Foundry Agent を使用した動画シーン検索システム</p>
+        </header>
+
+        <main>
+            <section class="search-section">
+                <h2>シーン検索</h2>
+                <div class="search-form">
+                    <input type="text" id="queryInput" placeholder="検索キーワードを入力してください（例：会議のシーン、製品デモ）" />
+                    <button id="searchButton">検索</button>
+                </div>
+                <div id="loadingIndicator" class="loading" style="display: none;">
+                    <p>検索中...</p>
+                </div>
+            </section>
+
+            <section class="results-section">
+                <h2>検索結果</h2>
+                <div id="resultsContainer">
+                    <p class="no-results">検索結果がここに表示されます</p>
+                </div>
+            </section>
+
+            <section class="video-section" style="display: none;">
+                <h2>動画プレイヤー</h2>
+                <div class="video-container">
+                    <video id="videoPlayer" controls>
+                        <p>お使いのブラウザは動画タグをサポートしていません。</p>
+                    </video>
+                    <div class="video-info">
+                        <h3 id="videoTitle"></h3>
+                        <p id="videoDescription"></p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Video ID to URL mapping (configure based on your video storage)
+        const videoMapping = {
+            'video1': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            'video2': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            'video3': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            // Add more video mappings as needed
+        };
+
+        const queryInput = document.getElementById('queryInput');
+        const searchButton = document.getElementById('searchButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const videoSection = document.querySelector('.video-section');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoTitle = document.getElementById('videoTitle');
+        const videoDescription = document.getElementById('videoDescription');
+
+        searchButton.addEventListener('click', performSearch);
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        async function performSearch() {
+            const query = queryInput.value.trim();
+            if (!query) {
+                alert('検索キーワードを入力してください');
+                return;
+            }
+
+            searchButton.disabled = true;
+            loadingIndicator.style.display = 'block';
+            resultsContainer.innerHTML = '<p class="no-results">検索中...</p>';
+
+            try {
+                const response = await fetch('/api/scene-search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data.response);
+            } catch (error) {
+                console.error('Error:', error);
+                resultsContainer.innerHTML = `<p class="error">エラーが発生しました: ${error.message}</p>`;
+            } finally {
+                searchButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function displayResults(responseText) {
+            try {
+                // Try to parse as JSON
+                let results;
+                try {
+                    const parsed = JSON.parse(responseText);
+                    // Handle different response structures
+                    if (Array.isArray(parsed)) {
+                        results = parsed;
+                    } else if (parsed.results) {
+                        results = parsed.results;
+                    } else if (parsed.choices && parsed.choices[0]) {
+                        // Azure AI response format
+                        const content = parsed.choices[0].message?.content || parsed.choices[0].text;
+                        results = JSON.parse(content);
+                    } else {
+                        results = [parsed];
+                    }
+                } catch {
+                    // If not JSON, display as text
+                    resultsContainer.innerHTML = `<pre class="json-response">${escapeHtml(responseText)}</pre>`;
+                    return;
+                }
+
+                if (!results || results.length === 0) {
+                    resultsContainer.innerHTML = '<p class="no-results">検索結果が見つかりませんでした</p>';
+                    return;
+                }
+
+                // Display JSON response
+                resultsContainer.innerHTML = '<h3>エージェント応答（JSON）</h3>';
+                resultsContainer.innerHTML += `<pre class="json-response">${escapeHtml(JSON.stringify(results, null, 2))}</pre>`;
+
+                // Display results as cards
+                resultsContainer.innerHTML += '<h3>検索結果一覧</h3>';
+                const cardsContainer = document.createElement('div');
+                cardsContainer.className = 'results-cards';
+
+                results.forEach((result, index) => {
+                    const card = createResultCard(result, index);
+                    cardsContainer.appendChild(card);
+                });
+
+                resultsContainer.appendChild(cardsContainer);
+            } catch (error) {
+                console.error('Error displaying results:', error);
+                resultsContainer.innerHTML = `<pre class="json-response">${escapeHtml(responseText)}</pre>`;
+            }
+        }
+
+        function createResultCard(result, index) {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            const videoId = result.videoId || result.video_id || `video${index + 1}`;
+            const title = result.title || result.Title || '無題';
+            const startSec = result.startSec || result.start_sec || result.StartSec || 0;
+            const endSec = result.endSec || result.end_sec || result.EndSec || 0;
+            const description = result.description || result.Description || '';
+            const score = result.score || result.Score || 0;
+
+            card.innerHTML = `
+                <div class="result-header">
+                    <h4>${escapeHtml(title)}</h4>
+                    <span class="score">Score: ${score.toFixed(2)}</span>
+                </div>
+                <p class="result-time">⏱️ ${formatTime(startSec)} - ${formatTime(endSec)}</p>
+                <p class="result-description">${escapeHtml(description)}</p>
+                <button class="play-button" data-video-id="${videoId}" data-start="${startSec}" data-title="${escapeHtml(title)}" data-description="${escapeHtml(description)}">
+                    ▶️ 動画を再生
+                </button>
+            `;
+
+            const playButton = card.querySelector('.play-button');
+            playButton.addEventListener('click', () => {
+                playVideo(videoId, startSec, title, description);
+            });
+
+            return card;
+        }
+
+        function playVideo(videoId, startSec, title, description) {
+            const videoUrl = videoMapping[videoId];
+            
+            if (!videoUrl) {
+                alert(`動画ID "${videoId}" の URL が見つかりません。videoMapping に設定を追加してください。`);
+                return;
+            }
+
+            videoPlayer.src = videoUrl;
+            videoTitle.textContent = title;
+            videoDescription.textContent = description;
+            videoSection.style.display = 'block';
+
+            // Seek to start time when video is loaded
+            videoPlayer.addEventListener('loadedmetadata', () => {
+                videoPlayer.currentTime = startSec;
+                videoPlayer.play();
+            }, { once: true });
+
+            // Scroll to video player
+            videoSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
