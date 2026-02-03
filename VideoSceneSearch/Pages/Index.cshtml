@@ -16,7 +16,6 @@
     <div class="container">
         <header>
             <h1>🎬 動画シーン検索</h1>
-            <p>Azure AI Foundry Agent を使用した動画シーン検索システム</p>
         </header>
 
         <main>
@@ -54,13 +53,8 @@
     </div>
 
     <script>
-        // Video ID to URL mapping (configure based on your video storage)
-        const videoMapping = {
-            'video1': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            'video2': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-            'video3': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-            // Add more video mappings as needed
-        };
+        // Video mapping will be loaded from API
+        let videoMapping = {};
 
         const queryInput = document.getElementById('queryInput');
         const searchButton = document.getElementById('searchButton');
@@ -71,12 +65,42 @@
         const videoTitle = document.getElementById('videoTitle');
         const videoDescription = document.getElementById('videoDescription');
 
+        // Load video mapping on page load
+        async function loadVideoMapping() {
+            try {
+                const response = await fetch('/api/video-mapping');
+                if (response.ok) {
+                    videoMapping = await response.json();
+                    console.log('Video mapping loaded:', videoMapping);
+                } else {
+                    console.warn('Failed to load video mapping, using default');
+                    // Fallback to sample videos
+                    videoMapping = {
+                        'video1': {
+                            title: 'Sample Video 1',
+                            file: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+                        },
+                        'video2': {
+                            title: 'Sample Video 2',
+                            file: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4'
+                        }
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading video mapping:', error);
+            }
+        }
+
+        // Initialize
+        loadVideoMapping();
+
         searchButton.addEventListener('click', performSearch);
         queryInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 performSearch();
             }
         });
+
 
         async function performSearch() {
             const query = queryInput.value.trim();
@@ -115,82 +139,85 @@
 
         function displayResults(data) {
             try {
-                if (!data || (!data.candidates && !data.rawResponse)) {
+                console.log('Received data:', data);
+                
+                if (!data || !data.scenes || data.scenes.length === 0) {
                     resultsContainer.innerHTML = '<p class="no-results">検索結果が見つかりませんでした</p>';
                     return;
                 }
 
                 resultsContainer.innerHTML = '';
 
-                // Display summary
-                if (data.summary && data.summary.totalCount > 0) {
-                    const summaryDiv = document.createElement('div');
-                    summaryDiv.className = 'scene-summary';
-                    summaryDiv.innerHTML = `
-                        <h3>該当シーン候補: ${data.summary.totalCount}件</h3>
-                        <p class="confidence-breakdown">(High: ${data.summary.highCount} / Medium: ${data.summary.mediumCount} / Low: ${data.summary.lowCount})</p>
-                    `;
-                    resultsContainer.appendChild(summaryDiv);
-                }
+                // Display summary header
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'scene-summary';
+                summaryDiv.innerHTML = `
+                    <h3>該当シーン: ${data.scenes.length}件</h3>
+                `;
+                resultsContainer.appendChild(summaryDiv);
 
-                // Display candidates
-                if (data.candidates && data.candidates.length > 0) {
-                    const candidatesHeader = document.createElement('h3');
-                    candidatesHeader.textContent = 'シーン候補（関連度上位から最大5件）';
-                    candidatesHeader.style.marginTop = '2rem';
-                    resultsContainer.appendChild(candidatesHeader);
+                // Display scene results
+                const scenesHeader = document.createElement('h3');
+                scenesHeader.textContent = 'シーン候補';
+                scenesHeader.style.marginTop = '2rem';
+                resultsContainer.appendChild(scenesHeader);
 
-                    data.candidates.forEach((candidate, index) => {
-                        const candidateDiv = createCandidateCard(candidate, index);
-                        resultsContainer.appendChild(candidateDiv);
-                    });
-                }
-
-                // Display raw JSON response (collapsible)
-                if (data.rawResponse) {
-                    const jsonSection = document.createElement('details');
-                    jsonSection.style.marginTop = '2rem';
-                    jsonSection.innerHTML = `
-                        <summary style="cursor: pointer; font-weight: bold; padding: 0.5rem; background: #f0f0f0; border-radius: 4px;">
-                            エージェント応答（JSON）
-                        </summary>
-                        <pre class="json-response">${escapeHtml(data.rawResponse)}</pre>
-                    `;
-                    resultsContainer.appendChild(jsonSection);
-                }
+                data.scenes.forEach((scene, index) => {
+                    const sceneCard = createSceneCard(scene, index);
+                    resultsContainer.appendChild(sceneCard);
+                });
             } catch (error) {
                 console.error('Error displaying results:', error);
                 resultsContainer.innerHTML = `<p class="error">結果の表示中にエラーが発生しました: ${error.message}</p>`;
             }
         }
 
-        function createCandidateCard(candidate, index) {
+        function createSceneCard(scene, index) {
             const card = document.createElement('div');
-            card.className = 'candidate-card';
+            card.className = 'scene-card';
 
-            const confidenceClass = candidate.confidence?.toLowerCase() || 'unknown';
-            
+            // Determine confidence level badge
+            let confidenceClass = 'confidence-medium';
+            let confidenceLabel = 'Medium';
+            if (scene.confidence >= 0.8) {
+                confidenceClass = 'confidence-high';
+                confidenceLabel = 'High';
+            } else if (scene.confidence < 0.6) {
+                confidenceClass = 'confidence-low';
+                confidenceLabel = 'Low';
+            }
+
             card.innerHTML = `
-                <div class="candidate-header">
-                    <div>
-                        <div class="candidate-video-id">Video ID: ${escapeHtml(candidate.videoId || '')}</div>
-                        <div class="candidate-title">Title: ${escapeHtml(candidate.title || '')}</div>
-                        <div class="candidate-timestamp">
-                            Timestamp: <strong>${escapeHtml(candidate.timestamp || '')}</strong> / 
-                            信頼度: <span class="confidence-badge confidence-${confidenceClass}">${escapeHtml(candidate.confidence || '')}</span>
-                        </div>
+                <div class="scene-header">
+                    <div class="scene-title">
+                        <strong>シーン ${index + 1}</strong>
+                        ${scene.videoId ? `<span class="video-id">Video ID: ${escapeHtml(scene.videoId)}</span>` : ''}
+                        ${scene.title && scene.title !== '無題' ? `<span class="scene-video-title">${escapeHtml(scene.title)}</span>` : ''}
                     </div>
+                    <span class="confidence-badge ${confidenceClass}">
+                        信頼度: ${confidenceLabel} (${(scene.confidence * 100).toFixed(0)}%)
+                    </span>
                 </div>
-                <div class="candidate-body">
-                    <p><strong>Description:</strong> ${escapeHtml(candidate.description || '')}</p>
-                    ${candidate.evidence ? `<p><strong>根拠:</strong> ${escapeHtml(candidate.evidence)}</p>` : ''}
-                    ${candidate.reason ? `<p><strong>理由:</strong> ${escapeHtml(candidate.reason)}</p>` : ''}
-                    ${candidate.reference ? `<p><strong>参照:</strong> ${escapeHtml(candidate.reference)}</p>` : ''}
+                <div class="scene-body">
+                    <div class="scene-timestamp">
+                        <strong>Timestamp:</strong> ${escapeHtml(scene.start)} - ${escapeHtml(scene.end)}
+                    </div>
+                    ${scene.description || scene.evidence ? `
+                        <div class="scene-description">
+                            <strong>Description:</strong> ${escapeHtml(scene.description || scene.evidence)}
+                        </div>
+                    ` : ''}
+                    ${scene.evidence && scene.description !== scene.evidence ? `
+                        <div class="scene-evidence">
+                            <strong>根拠:</strong> ${escapeHtml(scene.evidence)}
+                        </div>
+                    ` : ''}
                 </div>
-                ${candidate.startTime > 0 ? `
-                <div class="candidate-actions">
-                    <button class="play-button" data-video-id="${escapeHtml(candidate.videoId)}" 
-                            data-start="${candidate.startTime}" data-title="${escapeHtml(candidate.title)}">
+                ${scene.startSeconds > 0 ? `
+                <div class="scene-actions">
+                    <button class="play-button" data-video-id="${escapeHtml(scene.videoId)}" 
+                            data-start="${scene.startSeconds}" 
+                            data-title="${escapeHtml(scene.title || `シーン ${index + 1}`)}">
                         ▶️ 動画を再生
                     </button>
                 </div>
@@ -200,7 +227,7 @@
             const playButton = card.querySelector('.play-button');
             if (playButton) {
                 playButton.addEventListener('click', () => {
-                    playVideo(candidate.videoId, candidate.startTime, candidate.title, candidate.description);
+                    playVideo(scene.videoId, scene.startSeconds, scene.title || `シーン ${index + 1}`, scene.description || scene.evidence);
                 });
             }
 
@@ -239,15 +266,16 @@
         }
 
         function playVideo(videoId, startSec, title, description) {
-            const videoUrl = videoMapping[videoId];
+            const videoInfo = videoMapping[videoId];
             
-            if (!videoUrl) {
-                alert(`動画ID "${videoId}" の URL が見つかりません。videoMapping に設定を追加してください。`);
+            if (!videoInfo) {
+                alert(`動画ID "${videoId}" の情報が見つかりません。videomapping.json に設定を追加してください。`);
                 return;
             }
 
+            const videoUrl = videoInfo.file || videoInfo;
             videoPlayer.src = videoUrl;
-            videoTitle.textContent = title;
+            videoTitle.textContent = videoInfo.title || title;
             videoDescription.textContent = description;
             videoSection.style.display = 'block';
 

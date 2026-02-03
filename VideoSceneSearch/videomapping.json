@@ -1,0 +1,19 @@
+{
+  "VideoMapping": {
+    "bycB6smq8k": {
+      "title": "012 - Ski For Two (1944)",
+      "file": "/videos/012 - Ski For Two (1944).mp4",
+      "thumbnail": "/videos/thumbnails/ski-for-two.jpg"
+    },
+    "punyx32Express": {
+      "title": "032 - Puny Express (1951)",
+      "file": "/videos/032 - Puny Express (1951).mp4",
+      "thumbnail": "/videos/thumbnails/puny-express.jpg"
+    },
+    "video1": {
+      "title": "Sample Video 1",
+      "file": "/videos/sample1.mp4",
+      "thumbnail": "/videos/thumbnails/sample1.jpg"
+    }
+  }
+}
