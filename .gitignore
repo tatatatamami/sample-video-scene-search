@@ -11,6 +11,17 @@
 *.sln.docstates
 *.env
 
+# Sensitive configuration files
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+
+# Large video files
+VideoSceneSearch/wwwroot/videos/*.mp4
+VideoSceneSearch/wwwroot/videos/*.avi
+VideoSceneSearch/wwwroot/videos/*.mov
+VideoSceneSearch/wwwroot/videos/*.mkv
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
