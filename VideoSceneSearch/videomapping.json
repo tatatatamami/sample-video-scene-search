@@ -1,5 +1,10 @@
 {
-  "VideoMapping": {
+"VideoMapping": {
+  "f1h6ymmhsi": {
+    "title": "ゲームプレイ動画",
+    "file": "/videos/sample2.mp4",
+    "thumbnail": "/videos/thumbnails/sample1.jpg"
+  },
     "4jkw9aemfm": {
       "title": "英雄セフィロス",
       "file": "/videos/英雄セフィロス.mp4",

@@ -266,7 +266,11 @@
         }
 
         function playVideo(videoId, startSec, title, description) {
+            console.log('playVideo called with:', { videoId, startSec, title, description });
+            console.log('videoMapping:', videoMapping);
+            
             const videoInfo = videoMapping[videoId];
+            console.log('videoInfo for', videoId, ':', videoInfo);
             
             if (!videoInfo) {
                 alert(`動画ID "${videoId}" の情報が見つかりません。videomapping.json に設定を追加してください。`);
@@ -274,19 +278,38 @@
             }
 
             const videoUrl = videoInfo.file || videoInfo;
-            videoPlayer.src = videoUrl;
+            console.log('Loading video from:', videoUrl);
+            
+            // Show loading message
+            videoTitle.textContent = `読み込み中: ${videoInfo.title || title}`;
+            videoDescription.textContent = `${startSec}秒の位置へシーク中...`;
+            videoSection.style.display = 'block';
+            
+            // Set video source with timestamp hint for faster seeking
+            videoPlayer.src = videoUrl + '#t=' + startSec;
             videoTitle.textContent = videoInfo.title || title;
             videoDescription.textContent = description;
-            videoSection.style.display = 'block';
 
-            // Seek to start time when video is loaded
-            videoPlayer.addEventListener('loadedmetadata', () => {
+            // Wait for enough data to be loaded
+            videoPlayer.addEventListener('canplay', () => {
+                console.log('Video can play, seeking to:', startSec);
                 videoPlayer.currentTime = startSec;
-                videoPlayer.play();
+                videoPlayer.play().catch(e => console.log('Auto-play prevented:', e));
+            }, { once: true });
+            
+            // Error handler
+            videoPlayer.addEventListener('error', (e) => {
+                console.error('Video error:', e);
+                console.error('Video error code:', videoPlayer.error?.code);
+                console.error('Video error message:', videoPlayer.error?.message);
+                videoDescription.textContent = '動画の読み込みに失敗しました。ファイルが存在するか確認してください。';
             }, { once: true });
 
             // Scroll to video player
             videoSection.scrollIntoView({ behavior: 'smooth' });
+            
+            // Start loading the video
+            videoPlayer.load();
         }
 
         function formatTime(seconds) {
