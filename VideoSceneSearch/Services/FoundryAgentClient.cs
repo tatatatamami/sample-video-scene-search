@@ -90,7 +90,10 @@ User query: ";
             // };
 
             var jsonContent = JsonSerializer.Serialize(requestBody);
+            _logger.LogInformation("=== REQUEST TO AGENT ===");
+            _logger.LogInformation("Endpoint: {Endpoint}", _settings.Endpoint);
             _logger.LogInformation("Request body: {RequestBody}", jsonContent);
+            _logger.LogInformation("=== END REQUEST ===");
             
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
@@ -122,6 +125,11 @@ User query: ";
             // Read response
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogInformation("Response status: {StatusCode}", response.StatusCode);
+            
+            // Log the full response for debugging
+            _logger.LogInformation("=== FULL AGENT RESPONSE ===");
+            _logger.LogInformation("{ResponseContent}", responseContent);
+            _logger.LogInformation("=== END AGENT RESPONSE ===");
             
             response.EnsureSuccessStatusCode();
 

@@ -1,5 +1,20 @@
 {
   "VideoMapping": {
+    "4jkw9aemfm": {
+      "title": "英雄セフィロス",
+      "file": "/videos/英雄セフィロス.mp4",
+      "thumbnail": "/videos/thumbnails/ski-for-two.jpg"
+    },
+    "taqmlwa8iq": {
+      "title": "ニブルヘイム編",
+      "file": "/videos/ニブルヘイム編.mp4",
+      "thumbnail": "/videos/thumbnails/puny-express.jpg"
+    },
+    "e4mjy8wnkh": {
+      "title": "魔晄の泉",
+      "file": "/videos/魔晄の泉.mp4",
+      "thumbnail": "/videos/thumbnails/sample1.jpg"
+    },
     "bycB6smq8k": {
       "title": "012 - Ski For Two (1944)",
       "file": "/videos/012 - Ski For Two (1944).mp4",
