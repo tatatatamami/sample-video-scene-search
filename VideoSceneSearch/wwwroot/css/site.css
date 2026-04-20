@@ -12,7 +12,8 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    width: 95%;
+    max-width: 1920px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -40,7 +41,7 @@ header p {
 main {
     background: white;
     border-radius: 10px;
-    padding: 30px;
+    padding: 40px 50px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -227,7 +228,7 @@ section h2 {
 }
 
 .video-container {
-    max-width: 800px;
+    max-width: 1100px;
     margin: 0 auto;
 }
 
@@ -480,4 +481,57 @@ section h2 {
     padding: 0.7rem 1.8rem;
     font-size: 1em;
 }
+
+/* Scene Metadata Tags */
+.scene-metadata {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.metadata-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.metadata-item strong {
+    color: #555;
+    font-size: 0.85em;
+    min-width: 70px;
+}
+
+.tag {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+.tag-mode {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.tag-location {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.tag-info {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.tag-action {
+    background: #fff3e0;
+    color: #e65100;
+}
+
 
