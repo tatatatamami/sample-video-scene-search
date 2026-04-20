@@ -140,6 +140,11 @@
         function displayResults(data) {
             try {
                 console.log('Received data:', data);
+                console.log('First scene:', data?.scenes?.[0]);
+                console.log('First scene mode:', data?.scenes?.[0]?.mode);
+                console.log('First scene location:', data?.scenes?.[0]?.location);
+                console.log('First scene tags:', data?.scenes?.[0]?.tags);
+                console.log('First scene actions:', data?.scenes?.[0]?.actions);
                 
                 if (!data || !data.scenes || data.scenes.length === 0) {
                     resultsContainer.innerHTML = '<p class="no-results">検索結果が見つかりませんでした</p>';
@@ -192,7 +197,6 @@
                     <div class="scene-title">
                         <strong>シーン ${index + 1}</strong>
                         ${scene.videoId ? `<span class="video-id">Video ID: ${escapeHtml(scene.videoId)}</span>` : ''}
-                        ${scene.title && scene.title !== '無題' ? `<span class="scene-video-title">${escapeHtml(scene.title)}</span>` : ''}
                     </div>
                     <span class="confidence-badge ${confidenceClass}">
                         信頼度: ${confidenceLabel} (${(scene.confidence * 100).toFixed(0)}%)
@@ -202,6 +206,14 @@
                     <div class="scene-timestamp">
                         <strong>Timestamp:</strong> ${escapeHtml(scene.start)} - ${escapeHtml(scene.end)}
                     </div>
+                    ${scene.mode || scene.location || scene.tags || scene.actions ? `
+                        <div class="scene-metadata">
+                            ${scene.mode ? `<div class="metadata-item"><strong>Mode:</strong> <span class="tag tag-mode">${escapeHtml(scene.mode)}</span></div>` : ''}
+                            ${scene.location ? `<div class="metadata-item"><strong>Location:</strong> <span class="tag tag-location">${escapeHtml(scene.location)}</span></div>` : ''}
+                            ${scene.tags ? `<div class="metadata-item"><strong>Tags:</strong> ${scene.tags.split(',').map(t => '<span class="tag tag-info">' + escapeHtml(t.trim()) + '</span>').join(' ')}</div>` : ''}
+                            ${scene.actions ? `<div class="metadata-item"><strong>Actions:</strong> ${scene.actions.split(',').map(a => '<span class="tag tag-action">' + escapeHtml(a.trim()) + '</span>').join(' ')}</div>` : ''}
+                        </div>
+                    ` : ''}
                     ${scene.description || scene.evidence ? `
                         <div class="scene-description">
                             <strong>Description:</strong> ${escapeHtml(scene.description || scene.evidence)}
@@ -216,7 +228,8 @@
                 ${scene.startSeconds > 0 ? `
                 <div class="scene-actions">
                     <button class="play-button" data-video-id="${escapeHtml(scene.videoId)}" 
-                            data-start="${scene.startSeconds}" 
+                            data-start="${scene.startSeconds}"
+                            data-end="${scene.endSeconds}"
                             data-title="${escapeHtml(scene.title || `シーン ${index + 1}`)}">
                         ▶️ 動画を再生
                     </button>
@@ -227,7 +240,7 @@
             const playButton = card.querySelector('.play-button');
             if (playButton) {
                 playButton.addEventListener('click', () => {
-                    playVideo(scene.videoId, scene.startSeconds, scene.title || `シーン ${index + 1}`, scene.description || scene.evidence);
+                    playVideo(scene.videoId, scene.startSeconds, scene.endSeconds, scene.title || `シーン ${index + 1}`, scene.description || scene.evidence);
                 });
             }
 
@@ -265,13 +278,17 @@
             return card;
         }
 
-        function playVideo(videoId, startSec, title, description) {
-            console.log('playVideo called with:', { videoId, startSec, title, description });
+        // Store the current end time for auto-pause
+        let currentEndTime = null;
+        let timeUpdateHandler = null;
+
+        function playVideo(videoId, startSec, endSec, title, description) {
+            console.log('playVideo called with:', { videoId, startSec, endSec, title, description });
             console.log('videoMapping:', videoMapping);
-            
+
             const videoInfo = videoMapping[videoId];
             console.log('videoInfo for', videoId, ':', videoInfo);
-            
+
             if (!videoInfo) {
                 alert(`動画ID "${videoId}" の情報が見つかりません。videomapping.json に設定を追加してください。`);
                 return;
@@ -279,16 +296,33 @@
 
             const videoUrl = videoInfo.file || videoInfo;
             console.log('Loading video from:', videoUrl);
-            
+
+            // Remove previous timeupdate handler if exists
+            if (timeUpdateHandler) {
+                videoPlayer.removeEventListener('timeupdate', timeUpdateHandler);
+            }
+
+            // Set end time for auto-pause
+            currentEndTime = endSec;
+
+            // Create new timeupdate handler for auto-pause at end time
+            timeUpdateHandler = () => {
+                if (currentEndTime && videoPlayer.currentTime >= currentEndTime) {
+                    videoPlayer.pause();
+                    console.log('Auto-paused at end time:', currentEndTime);
+                    videoDescription.textContent = `${description} (シーン終了: ${formatTime(currentEndTime)}で自動停止)`;
+                }
+            };
+            videoPlayer.addEventListener('timeupdate', timeUpdateHandler);
+
             // Show loading message
             videoTitle.textContent = `読み込み中: ${videoInfo.title || title}`;
-            videoDescription.textContent = `${startSec}秒の位置へシーク中...`;
+            videoDescription.textContent = `${formatTime(startSec)} - ${formatTime(endSec)} のシーンを再生中...`;
             videoSection.style.display = 'block';
-            
+
             // Set video source with timestamp hint for faster seeking
             videoPlayer.src = videoUrl + '#t=' + startSec;
             videoTitle.textContent = videoInfo.title || title;
-            videoDescription.textContent = description;
 
             // Wait for enough data to be loaded
             videoPlayer.addEventListener('canplay', () => {
@@ -296,7 +330,7 @@
                 videoPlayer.currentTime = startSec;
                 videoPlayer.play().catch(e => console.log('Auto-play prevented:', e));
             }, { once: true });
-            
+
             // Error handler
             videoPlayer.addEventListener('error', (e) => {
                 console.error('Video error:', e);
@@ -307,7 +341,7 @@
 
             // Scroll to video player
             videoSection.scrollIntoView({ behavior: 'smooth' });
-            
+
             // Start loading the video
             videoPlayer.load();
         }

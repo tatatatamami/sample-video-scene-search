@@ -172,8 +172,7 @@ User query: ";
                                 contentItem.TryGetProperty("text", out var text))
                             {
                                 var contentString = text.GetString() ?? string.Empty;
-                                _logger.LogInformation("Extracted output_text: {Content}", 
-                                    contentString.Length > 500 ? contentString.Substring(0, 500) + "..." : contentString);
+                                _logger.LogInformation("Extracted output_text (full): {Content}", contentString);
 
                                 // Validate that the text itself is valid JSON
                                 using var contentDoc = JsonDocument.Parse(contentString);

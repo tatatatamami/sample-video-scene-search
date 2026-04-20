@@ -60,9 +60,34 @@ app.MapPost("/api/scene-search", async (
         // Get JSON response from agent
         var jsonResult = await foundryClient.SearchScenesAsync(request.Query, availableVideos, cancellationToken);
         
-        // Parse the JSON into SceneSearchResponse
-        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(jsonResult);
+        // DEBUG: Log the raw JSON from agent
+        logger.LogInformation("=== RAW JSON FROM AGENT ===");
+        logger.LogInformation("{JsonResult}", jsonResult);
+        logger.LogInformation("=== END RAW JSON ===");
         
+        // Configure JSON options to be case-insensitive
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        
+        // Parse the JSON into SceneSearchResponse
+        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(jsonResult, jsonOptions);
+
+        // DEBUG: Log parsed scene data
+        if (sceneResponse?.Scenes != null && sceneResponse.Scenes.Count > 0)
+        {
+            var firstScene = sceneResponse.Scenes[0];
+            logger.LogInformation("=== FIRST SCENE PARSED ===");
+            logger.LogInformation("Description (from JSON): {Description}", firstScene.Description ?? "NULL");
+            logger.LogInformation("Evidence (from JSON): {Evidence}", firstScene.Evidence ?? "NULL");
+            logger.LogInformation("Mode: {Mode}", firstScene.Mode ?? "NULL");
+            logger.LogInformation("Location: {Location}", firstScene.Location ?? "NULL");
+            logger.LogInformation("Tags: {Tags}", firstScene.Tags ?? "NULL");
+            logger.LogInformation("Actions: {Actions}", firstScene.Actions ?? "NULL");
+            logger.LogInformation("=== END FIRST SCENE ===");
+        }
+
         if (sceneResponse?.Scenes == null || sceneResponse.Scenes.Count == 0)
         {
             return Results.Ok(new { scenes = new List<SceneResult>() });
@@ -72,17 +97,20 @@ app.MapPost("/api/scene-search", async (
         for (int i = 0; i < sceneResponse.Scenes.Count; i++)
         {
             var scene = sceneResponse.Scenes[i];
-            
+
             // Parse timestamps to seconds
             scene.StartSeconds = ParseTimeToSeconds(scene.Start);
             scene.EndSeconds = ParseTimeToSeconds(scene.End);
-            
+
             // Use description from evidence if not set
             if (string.IsNullOrEmpty(scene.Description))
             {
                 scene.Description = scene.Evidence;
             }
-            
+
+            // Mode, Location, tags, actions: keep as null/empty if not provided by agent
+            // UI will conditionally show these only when they have values
+
             // VideoId and Title should already be set from agent response
             // If not set, use fallback values
             if (string.IsNullOrEmpty(scene.VideoId))
@@ -94,7 +122,51 @@ app.MapPost("/api/scene-search", async (
                 scene.Title = "–³‘è";
             }
         }
-        
+
+        // Deduplicate scenes with same videoId + start + end timestamps
+        // Keep the one with highest confidence, merge descriptions if different
+        var deduplicatedScenes = sceneResponse.Scenes
+            .GroupBy(s => new { s.VideoId, s.Start, s.End })
+            .Select(group =>
+            {
+                // Get the scene with highest confidence
+                var bestScene = group.OrderByDescending(s => s.Confidence).First();
+
+                // Collect unique descriptions from all scenes in the group
+                var allDescriptions = group
+                    .Where(s => !string.IsNullOrEmpty(s.Description))
+                    .Select(s => s.Description!)
+                    .Distinct()
+                    .ToList();
+
+                // If there are multiple unique descriptions, join them
+                if (allDescriptions.Count > 1)
+                {
+                    bestScene.Description = string.Join(" / ", allDescriptions);
+                }
+
+                // Collect unique evidence from all scenes
+                var allEvidence = group
+                    .Where(s => !string.IsNullOrEmpty(s.Evidence))
+                    .Select(s => s.Evidence!)
+                    .Distinct()
+                    .ToList();
+
+                if (allEvidence.Count > 1)
+                {
+                    bestScene.Evidence = string.Join("\n---\n", allEvidence);
+                }
+
+                return bestScene;
+            })
+            .OrderByDescending(s => s.Confidence)
+            .ToList();
+
+        logger.LogInformation("Deduplicated scenes: {Original} -> {Deduplicated}", 
+            sceneResponse.Scenes.Count, deduplicatedScenes.Count);
+
+        sceneResponse.Scenes = deduplicatedScenes;
+
         return Results.Ok(sceneResponse);
     }
     catch (Exception ex)
