@@ -1,0 +1,149 @@
+{
+  "fieldSchema": {
+    "fields": {
+      "imagePath": {
+        "type": "string",
+        "method": "generate",
+        "description": "Return EXACTLY the file name of the input image and nothing else. Do not add explanation, path prefix, or suffix. Example: KeyFrameThumbnail_cfe02bc1-b238-4732-89db-5e5d7d4305ff.jpg"
+      },
+      "description": {
+        "type": "string",
+        "method": "generate",
+        "description": "Provide a detailed natural-language description (3-5 sentences) of what is visually happening in this frame. This description is used for semantic search, so be specific and thorough. Include: (1) the main visual content (biome, structure, character, mob, etc.), (2) any visible block types, item names, mob names, or structure names, (3) visible UI elements (hotbar, health/hunger bar, XP bar, inventory, crafting screen, etc.), (4) the game mode or context if identifiable (survival, creative, adventure, spectator, title screen, cinematic), (5) notable actions or events occurring (building, mining, fighting, exploring, spawning). Write in Japanese. Do not omit visible text that helps identify the scene."
+      },
+      "subject": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "PLAYER_CHARACTER",
+          "MOB_HOSTILE",
+          "MOB_PASSIVE",
+          "STRUCTURE",
+          "LANDSCAPE",
+          "GAME_UI",
+          "MULTIPLE_SUBJECTS",
+          "TITLE_CARD",
+          "NO_CLEAR_SUBJECT"
+        ],
+        "description": "Primary visible subject of the frame."
+      },
+      "shot_type": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "EXTREME_CLOSEUP",
+          "CLOSEUP",
+          "MEDIUM",
+          "WIDE",
+          "UNKNOWN"
+        ],
+        "description": "Camera shot type of the frame."
+      },
+      "emotion": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "EXCITING",
+          "TENSE",
+          "PEACEFUL",
+          "DARK",
+          "NEUTRAL",
+          "UNKNOWN"
+        ],
+        "description": "Overall emotional tone of the frame."
+      },
+      "scene_type": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "OVERWORLD_EXPLORATION",
+          "CAVE_MINING",
+          "BUILDING",
+          "COMBAT",
+          "NETHER",
+          "THE_END",
+          "INVENTORY_UI",
+          "CRAFTING_UI",
+          "TITLE_SCREEN",
+          "CUTSCENE",
+          "VILLAGE",
+          "STRUCTURE_INTERIOR",
+          "WATER_SCENE",
+          "NIGHT_SCENE",
+          "UNKNOWN"
+        ],
+        "description": "Scene category of the frame."
+      },
+      "objects": {
+        "type": "array",
+        "method": "generate",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CREEPER",
+            "ZOMBIE",
+            "SKELETON",
+            "ENDERMAN",
+            "ENDER_DRAGON",
+            "WITHER",
+            "VILLAGER",
+            "ANIMAL_MOB",
+            "CHEST",
+            "CRAFTING_TABLE",
+            "FURNACE",
+            "BED",
+            "PORTAL",
+            "TORCH",
+            "DIAMOND",
+            "TNT",
+            "SWORD",
+            "BOW",
+            "HOTBAR",
+            "HEALTH_BAR",
+            "TEXT_ON_SCREEN",
+            "WATER",
+            "LAVA"
+          ]
+        },
+        "description": "Return zero or more clearly visible items from the enum list only. If none apply, return an empty list."
+      },
+      "biome": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "PLAINS",
+          "FOREST",
+          "DESERT",
+          "MOUNTAINS",
+          "SNOW",
+          "JUNGLE",
+          "SWAMP",
+          "OCEAN",
+          "BEACH",
+          "NETHER_WASTES",
+          "CRIMSON_FOREST",
+          "SOUL_SAND_VALLEY",
+          "THE_END",
+          "CAVE",
+          "UNKNOWN"
+        ],
+        "description": "Biome or environment visible in the frame."
+      },
+      "game_mode": {
+        "type": "string",
+        "method": "classify",
+        "enum": [
+          "SURVIVAL",
+          "CREATIVE",
+          "ADVENTURE",
+          "SPECTATOR",
+          "MAIN_MENU",
+          "OPENING",
+          "UNKNOWN"
+        ],
+        "description": "Minecraft game mode most likely shown in the frame."
+      }
+    },
+    "definitions": {}
+  }
+}

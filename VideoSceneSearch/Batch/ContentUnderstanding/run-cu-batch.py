@@ -146,7 +146,7 @@ def build_cu_fieldschema(schema: dict) -> dict:
 # Analyzer 作成 / 更新
 # ---------------------------------------------------------------------------
 
-def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict) -> None:
+def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict, model: str = "gpt-4.1") -> None:
     """
     Content Understanding Analyzer を作成または更新する（PUT は idempotent）。
     201 Created の場合は Operation-Location をポーリングして作成完了を待つ。
@@ -160,7 +160,7 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
         "description": "Video keyframe scene analyzer",
         "baseAnalyzerId": "prebuilt-image",
         "models": {
-            "completion": "gpt-5.2"
+            "completion": model
         },
         "fieldSchema": fieldschema,
     }
@@ -368,6 +368,24 @@ def calculate_schema_hash(schema_path: Path) -> str:
     return hashlib.sha256(schema_path.read_bytes()).hexdigest()
 
 
+def normalize_fields(fields: dict) -> dict:
+    """
+    objects フィールドをリストに正規化する。
+    - 文字列 → カンマ分割してリストに変換
+    - null / その他の非リスト型 → 空リストに変換
+    Content Understanding の generate フィールドはモデルによっては文字列や null で返ることがある。
+    """
+    objects = fields.get("objects")
+    if not isinstance(objects, list):
+        fields = dict(fields)
+        if isinstance(objects, str):
+            fields["objects"] = [v.strip() for v in objects.split(",") if v.strip()] if objects.strip() else []
+        else:
+            # None やその他の型は空リストへ
+            fields["objects"] = []
+    return fields
+
+
 def validate_fields(fields: dict) -> None:
     """解析結果の必須フィールドを検証する。不正な場合は ValueError を送出する。"""
     if not isinstance(fields, dict):
@@ -444,6 +462,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="実行前に Analyzer を作成または更新する（初回実行時や定義変更時に指定）",
     )
+    ap.add_argument(
+        "--model",
+        default="gpt-4.1",
+        help="Analyzer に使用する完成モデル名 (default: gpt-4.1)",
+    )
     return ap.parse_args()
 
 
@@ -467,6 +490,7 @@ def main() -> None:
     print(f"スキーマファイル : {args.schema_file}")
     print(f"エンドポイント  : {endpoint}")
     print(f"Analyzer ID     : {args.analyzer_id}")
+    print(f"モデル          : {args.model}")
     print()
 
     # 入力チェック
@@ -499,7 +523,7 @@ def main() -> None:
         print(f"\n[2/3] Analyzer を登録中 (ID: {args.analyzer_id})...")
         schema = load_schema(args.schema_file)
         fieldschema = build_cu_fieldschema(schema)
-        put_analyzer(endpoint, get_access_token(), args.analyzer_id, fieldschema)
+        put_analyzer(endpoint, get_access_token(), args.analyzer_id, fieldschema, args.model)
     else:
         print(f"\n[2/3] Analyzer 登録をスキップ (ID: {args.analyzer_id})")
         print("  ※ 初回実行時や定義を変更した場合は --ensure-analyzer を指定してください。")
@@ -524,6 +548,7 @@ def main() -> None:
             fields = analyze_image(
                 endpoint, get_access_token(), args.analyzer_id, image_path, args.poll_interval
             )
+            fields = normalize_fields(fields)
             validate_fields(fields)
             saved = save_result(output_dir, image_path, fields, args.analyzer_id, schema_hash)
             print(f" → {saved.name}")
