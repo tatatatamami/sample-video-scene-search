@@ -32,14 +32,17 @@
 			"objects": {
 				"type": "array",
 				"method": "generate",
-				"items": { "type": "string" },
-				"description": "Return zero or more clearly visible items from the following list only: FACE, TEXT_ON_SCREEN, CROWD, LOGO, PRODUCT, VEHICLE, ANIMAL, BUILDING, NATURE. Return only clearly visible items. If none apply, return an empty list. Do not generate new values."
+				"items": {
+					"type": "string",
+					"enum": ["FACE", "TEXT_ON_SCREEN", "CROWD", "LOGO", "PRODUCT", "VEHICLE", "ANIMAL", "BUILDING", "NATURE"]
+				},
+				"description": "Return zero or more clearly visible items from the enum list only. If none apply, return an empty list."
 			}
 		},
 		"definitions": {}
 	},
 	"_instructions": {
 		"comment": "This is a sample schema. Copy this file and customize the field descriptions for your video content.",
-		"usage": ".\\run-batch.ps1 -InputDir 'input\\MyVideo' -OutputDir 'output\\MyVideo' -SchemaFile 'FeldSchema_sample.json' -VideoTitle 'My Video'"
+		"usage": "python run-cu-batch.py --input-dir 'input/_KeyFrameThumbnail' --output-dir 'output/MyVideo' --schema-file 'FeldSchema_sample.json' --ensure-analyzer"
 	}
 }

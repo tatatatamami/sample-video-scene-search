@@ -21,11 +21,13 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -50,6 +52,7 @@ API_VERSION = "2025-11-01"
 TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default"
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
 POLL_TIMEOUT_SECONDS = 600  # ポーリングの最大待機時間（秒）
+RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +64,25 @@ _CREDENTIAL = DefaultAzureCredential()
 
 def get_access_token() -> str:
     return _CREDENTIAL.get_token(TOKEN_SCOPE).token
+
+
+def send_with_retry(
+    method: str,
+    url: str,
+    *,
+    max_attempts: int = 5,
+    **kwargs,
+) -> requests.Response:
+    """429/5xx を指数バックオフで再試行する共通送信関数。"""
+    for attempt in range(max_attempts):
+        resp = requests.request(method, url, **kwargs)
+        if resp.status_code not in RETRYABLE_STATUS_CODES:
+            return resp
+        if attempt == max_attempts - 1:
+            return resp
+        delay = float(resp.headers.get("Retry-After") or min(2 ** attempt, 30))
+        time.sleep(delay)
+    return resp  # 到達不能
 
 
 # ---------------------------------------------------------------------------
@@ -100,11 +122,15 @@ def build_cu_fieldschema(schema: dict) -> dict:
                 "enum": enum_vals,
             }
         elif ftype in ("array", "list"):
+            source_items = fdef.get("items", {"type": "string"})
+            cu_items: dict = {"type": source_items.get("type", "string")}
+            if source_items.get("enum"):
+                cu_items["enum"] = source_items["enum"]
             cu_fields[name] = {
                 "type": "array",
                 "description": desc,
                 "method": "generate",
-                "items": {"type": "string"},
+                "items": cu_items,
             }
         else:
             cu_fields[name] = {
@@ -125,7 +151,7 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
     Content Understanding Analyzer を作成または更新する（PUT は idempotent）。
     201 Created の場合は Operation-Location をポーリングして作成完了を待つ。
     """
-    url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}"
+    url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}&allowReplace=true"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -138,7 +164,7 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
         },
         "fieldSchema": fieldschema,
     }
-    resp = requests.put(url, json=body, headers=headers, timeout=60)
+    resp = send_with_retry("PUT", url, json=body, headers=headers, timeout=60)
     if resp.status_code not in (200, 201):
         raise RuntimeError(
             f"Analyzer の作成/更新に失敗しました: HTTP {resp.status_code}\n{resp.text}"
@@ -201,15 +227,14 @@ def analyze_image(
     非同期ジョブ（202 Accepted）をポーリングして完了を待つ。
     """
     url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyzeBinary?api-version={API_VERSION}"
-    operation_id = uuid.uuid4().hex
     mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
 
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": mime,
-        "Operation-Id": operation_id,
+        "x-ms-client-request-id": str(uuid.uuid4()),
     }
-    resp = requests.post(url, headers=headers, data=image_path.read_bytes(), timeout=60)
+    resp = send_with_retry("POST", url, headers=headers, data=image_path.read_bytes(), timeout=60)
 
     if resp.status_code == 200:
         return _extract_fields(resp.json())
@@ -305,6 +330,7 @@ def save_result(
     image_path: Path,
     fields: dict,
     analyzer_id: str,
+    schema_hash: str,
 ) -> Path:
     """
     build_knowledge.py の load_cu_index が期待する形式で JSON を保存する。
@@ -325,6 +351,8 @@ def save_result(
         "usage": {
             "source": "content-understanding",
             "analyzer_id": analyzer_id,
+            "schemaHash": schema_hash,
+            "processedAt": datetime.now(timezone.utc).isoformat(),
         },
     }
     temp_path = out_path.with_suffix(".json.tmp")
@@ -335,17 +363,34 @@ def save_result(
     return out_path
 
 
-def is_valid_output(path: Path) -> bool:
-    """出力済みファイルが有効な JSON 形式かどうかを確認する。"""
+def calculate_schema_hash(schema_path: Path) -> str:
+    """スキーマファイルの SHA-256 ハッシュを返す。"""
+    return hashlib.sha256(schema_path.read_bytes()).hexdigest()
+
+
+def validate_fields(fields: dict) -> None:
+    """解析結果の必須フィールドを検証する。不正な場合は ValueError を送出する。"""
+    if not isinstance(fields, dict):
+        raise ValueError("Analyzer が有効なフィールドオブジェクトを返しませんでした。")
+    if not isinstance(fields.get("description"), str):
+        raise ValueError("description が欠落または無効な型です。")
+    if not isinstance(fields.get("objects", []), list):
+        raise ValueError("objects は配列である必要があります。")
+
+
+def is_valid_output(path: Path, schema_hash: str) -> bool:
+    """出力済みファイルが有効な JSON 形式かつ現在のスキーマと一致するかどうかを確認する。"""
     try:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
         analysis = data.get("analysis")
-        return (
+        if not (
             isinstance(analysis, dict)
             and isinstance(analysis.get("description"), str)
             and isinstance(analysis.get("objects", []), list)
-        )
+        ):
+            return False
+        return data.get("usage", {}).get("schemaHash") == schema_hash
     except (OSError, json.JSONDecodeError):
         return False
 
@@ -428,6 +473,7 @@ def main() -> None:
     if not Path(args.schema_file).exists():
         print(f"ERROR: スキーマファイルが見つかりません: {args.schema_file}", file=sys.stderr)
         sys.exit(1)
+    schema_hash = calculate_schema_hash(Path(args.schema_file))
     if not input_dir.exists():
         print(f"ERROR: 入力ディレクトリが見つかりません: {input_dir}", file=sys.stderr)
         sys.exit(1)
@@ -468,7 +514,7 @@ def main() -> None:
         thumbnail_id = thumbnail_id_from_path(image_path)
         out_path = output_dir / f"KeyFrameThumbnail_{thumbnail_id}.json"
 
-        if is_valid_output(out_path) and not args.force:
+        if is_valid_output(out_path, schema_hash) and not args.force:
             skipped += 1
             print(f"  [{idx+1}/{len(images)}] スキップ (既存): {image_path.name}")
             continue
@@ -478,7 +524,8 @@ def main() -> None:
             fields = analyze_image(
                 endpoint, get_access_token(), args.analyzer_id, image_path, args.poll_interval
             )
-            saved = save_result(output_dir, image_path, fields, args.analyzer_id)
+            validate_fields(fields)
+            saved = save_result(output_dir, image_path, fields, args.analyzer_id, schema_hash)
             print(f" → {saved.name}")
             success += 1
         except Exception as exc:

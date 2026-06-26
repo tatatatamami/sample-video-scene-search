@@ -38,8 +38,11 @@
 			"objects": {
 				"type": "array",
 				"method": "generate",
-				"items": { "type": "string" },
-				"description": "Return zero or more values from the following list only: GUNDAM, MOBILE_SUIT, FACE, TEARS, WEAPON, EXPLOSION, TEXT_ON_SCREEN, VEHICLE, BUILDING, SKY. Return only clearly visible objects or entities. If none apply, return an empty list. Do not generate new values."
+				"items": {
+					"type": "string",
+					"enum": ["GUNDAM", "MOBILE_SUIT", "FACE", "TEARS", "WEAPON", "EXPLOSION", "TEXT_ON_SCREEN", "VEHICLE", "BUILDING", "SKY"]
+				},
+				"description": "Return zero or more clearly visible objects or entities from the enum list only. If none apply, return an empty list."
 			}
 		},
 		"definitions": {}
