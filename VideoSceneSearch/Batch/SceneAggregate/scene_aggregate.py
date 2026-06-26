@@ -16,30 +16,37 @@ Output: scene_facts.json  (1 scene = 1 doc)
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
+# ---------------------------------------------------------------------------
+# 時刻パーサー
+# ---------------------------------------------------------------------------
+
+# H:MM:SS(.fraction) 形式。hours は任意桁、minutes/seconds は 00-59 に制限。
+_TIME_PATTERN = re.compile(
+    r"^(?P<hours>\d+):"
+    r"(?P<minutes>[0-5]\d):"
+    r"(?P<seconds>[0-5]\d)"
+    r"(?:\.(?P<fraction>\d{1,7}))?$"
+)
+
+
 def parse_time_to_ms(t: str) -> int:
+    """Video Indexer の time 文字列 (例: "0:00:19.6333333") をミリ秒に変換。
+    不正なフォーマットは ValueError を送出する。
     """
-    Video Indexer の time 文字列 (例: "0:00:19.6333333") をミリ秒に変換。
-    想定: H:MM:SS(.fraction)
-    """
-    if "." in t:
-        base, frac = t.split(".", 1)
-        frac = "".join(ch for ch in frac if ch.isdigit())
-        frac_sec = float(f"0.{frac}") if frac else 0.0
-    else:
-        base, frac_sec = t, 0.0
-
-    parts = base.split(":")
-    if len(parts) != 3:
-        raise ValueError(f"Unexpected time format: {t}")
-
-    h = int(parts[0])
-    m = int(parts[1])
-    s = int(parts[2])
-    total_sec = h * 3600 + m * 60 + s + frac_sec
+    m = _TIME_PATTERN.match(t)
+    if not m:
+        raise ValueError(f"Invalid time format: {t!r}")
+    hours = int(m.group("hours"))
+    minutes = int(m.group("minutes"))
+    seconds = int(m.group("seconds"))
+    fraction_str = m.group("fraction") or ""
+    frac_sec = float(f"0.{fraction_str}") if fraction_str else 0.0
+    total_sec = hours * 3600 + minutes * 60 + seconds + frac_sec
     return int(round(total_sec * 1000))
 
 
@@ -82,16 +89,23 @@ def make_thumbnail_path(thumbnail_id: str, thumbnail_dir: Optional[str]) -> Opti
 
 
 def extract_instance_range(inst: Dict[str, Any]) -> Optional[Tuple[int, int]]:
+    """instances エントリから (start_ms, end_ms) を取得する。
+    start >= end の無効範囲は None を返す。
+    """
     start = inst.get("start")
     end = inst.get("end")
     if start is None or end is None:
         return None
-    return parse_time_to_ms(start), parse_time_to_ms(end)
+    start_ms = parse_time_to_ms(start)
+    end_ms = parse_time_to_ms(end)
+    if start_ms >= end_ms:
+        return None
+    return start_ms, end_ms
 
 
 def iter_item_ranges(item: Dict[str, Any]) -> List[Tuple[int, int]]:
     """instances[]/start/end 形式と appearances[]/startTime/endTime 形式の
-    両方を吸収して時間範囲リストを返す。
+    両方を吸収して時間範囲リストを返す。重複範囲は排除する。
 
     Video Indexer では insight の種類によってスキーマが異なる:
     - 多くの insight: instances[]{start, end}
@@ -103,15 +117,22 @@ def iter_item_ranges(item: Dict[str, Any]) -> List[Tuple[int, int]]:
         start = inst.get("start")
         end = inst.get("end")
         if start and end:
-            ranges.append((parse_time_to_ms(start), parse_time_to_ms(end)))
+            start_ms = parse_time_to_ms(start)
+            end_ms = parse_time_to_ms(end)
+            if start_ms < end_ms:
+                ranges.append((start_ms, end_ms))
 
     for appearance in item.get("appearances") or []:
         start = appearance.get("startTime")
         end = appearance.get("endTime")
         if start and end:
-            ranges.append((parse_time_to_ms(start), parse_time_to_ms(end)))
+            start_ms = parse_time_to_ms(start)
+            end_ms = parse_time_to_ms(end)
+            if start_ms < end_ms:
+                ranges.append((start_ms, end_ms))
 
-    return ranges
+    # instances と appearances 両方に同じ範囲が入る場合の重複排除
+    return list(dict.fromkeys(ranges))
 
 
 def collect_text_items_for_scene(
@@ -142,6 +163,9 @@ def collect_named_entities_for_scene(
     confidence_field: str = "confidence",
     max_items: int = 50,
 ) -> List[Dict[str, Any]]:
+    if max_items <= 0:
+        return []
+
     results: List[Dict[str, Any]] = []
     seen = set()
 
@@ -185,8 +209,14 @@ def collect_detected_objects_for_scene(
     同一カテゴリでも別 ID が存在する (例: 2台の車は id:1, id:23) ため、
     ID 単位で出現を数えつつ、カテゴリ名でグループ化して返す。
     build_knowledge.py との互換性のため "name" キーは維持する。
+
+    maxConfidence はシーンと重なる instance のみから算出する (別シーン分を混入させない)。
+    objectCount / objectIds は ID の重複を排除した実数を反映する。
     """
-    # カテゴリ名 -> 集計データ
+    if max_items <= 0:
+        return []
+
+    # カテゴリ名 -> 集計データ (_objectIds は set で重複排除)
     category_map: Dict[str, Dict[str, Any]] = {}
 
     for item in items:
@@ -199,39 +229,53 @@ def collect_detected_objects_for_scene(
 
         object_id = item.get("id")
 
-        matched_ranges = [
-            rng for rng in iter_item_ranges(item)
-            if overlaps(scene_range, rng)
-        ]
-        if not matched_ranges:
+        # このシーンと重なる instances のみを収集する
+        # confidence もこれらの instance だけから取得し、別シーン分の混入を防ぐ
+        matched_instances: List[Dict[str, Any]] = []
+        for inst in item.get("instances") or []:
+            rng = extract_instance_range(inst)
+            if rng and overlaps(scene_range, rng):
+                matched_instances.append(inst)
+
+        if not matched_instances:
             continue
 
         confidences = [
             float(inst["confidence"])
-            for inst in (item.get("instances") or [])
+            for inst in matched_instances
             if inst.get("confidence") is not None
         ]
 
         if name not in category_map:
             category_map[name] = {
                 "name": name,
-                "objectCount": 0,
-                "objectIds": [],
+                "_objectIds": set(),
                 "instanceCount": 0,
                 "maxConfidence": None,
             }
 
         cat = category_map[name]
-        cat["objectCount"] += 1
         if object_id is not None:
-            cat["objectIds"].append(object_id)
-        cat["instanceCount"] += len(matched_ranges)
+            cat["_objectIds"].add(object_id)
+        cat["instanceCount"] += len(matched_instances)
         if confidences:
             best = max(confidences)
             if cat["maxConfidence"] is None or best > cat["maxConfidence"]:
                 cat["maxConfidence"] = best
 
-    return list(category_map.values())[:max_items]
+    # set を list に変換して objectCount を確定する
+    results: List[Dict[str, Any]] = []
+    for cat in category_map.values():
+        object_ids = sorted(cat["_objectIds"])
+        results.append({
+            "name": cat["name"],
+            "objectCount": len(object_ids),
+            "objectIds": object_ids,
+            "instanceCount": cat["instanceCount"],
+            "maxConfidence": cat["maxConfidence"],
+        })
+
+    return results[:max_items]
 
 
 def pick_keyframes_for_scene(
@@ -242,8 +286,11 @@ def pick_keyframes_for_scene(
 ) -> List[Dict[str, Any]]:
     """shots[].keyFrames[].instances の start/end が scene と重なるものから代表を選ぶ。
     出力には thumbnailId / imagePath を含める。
-    代表: 先頭 + 中央(近いもの) で最大2枚。
+    代表: 先頭 + 中央(近いもの) で最大2枚 (max_frames は 0-2 で指定)。
     """
+    if max_frames <= 0:
+        return []
+
     candidates: List[Dict[str, Any]] = []
 
     for shot in shots:
@@ -320,10 +367,21 @@ def aggregate_scene_facts(
     max_objects: int = 50,
     thumbnail_dir: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    video = vi_json["videos"][video_index]
+    # 入力 JSON の構造検証
+    videos = vi_json.get("videos")
+    if not videos:
+        raise ValueError("Input JSON has no 'videos' array")
+    if video_index >= len(videos):
+        raise ValueError(
+            f"video_index {video_index} is out of range (videos has {len(videos)} entries)"
+        )
+    video = videos[video_index]
     video_id = str(video.get("id", ""))
 
-    insights = video["insights"]
+    insights = video.get("insights")
+    if insights is None:
+        raise ValueError(f"videos[{video_index}] has no 'insights' field")
+
     scenes = insights.get("scenes", []) or []
     shots = insights.get("shots", []) or []
     ocr_items = insights.get("ocr", []) or []
@@ -338,7 +396,12 @@ def aggregate_scene_facts(
 
     for sc in scenes:
         scene_id = f"{video_id}_scene_{sc.get('id')}"
-        inst = (sc.get("instances") or [{}])[0]
+
+        # instance が存在しないシーンはスキップ
+        instances = sc.get("instances") or []
+        if not instances or not instances[0].get("start") or not instances[0].get("end"):
+            continue
+        inst = instances[0]
         begin_ms = parse_time_to_ms(inst["start"])
         end_ms = parse_time_to_ms(inst["end"])
         scene_range = (begin_ms, end_ms)
@@ -433,10 +496,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", "-i", required=True, help="Video Indexer export JSON path")
     ap.add_argument("--output", "-o", required=True, help="Output JSON path")
-    ap.add_argument("--video-index", type=int, default=0, help="videos[] index")
+    ap.add_argument("--video-index", type=non_negative_int, default=0, help="videos[] index")
     ap.add_argument("--max-ocr-items", type=non_negative_int, default=200)
     ap.add_argument("--max-labels", type=non_negative_int, default=50)
-    ap.add_argument("--max-keyframes", type=non_negative_int, default=2)
+    ap.add_argument(
+        "--max-keyframes",
+        type=non_negative_int,
+        choices=[0, 1, 2],
+        default=2,
+        help="代表キーフレームの最大枚数 (0-2)。先頭と中央の最大2枚を選択する実装のため 2 以下に制限。",
+    )
     ap.add_argument("--max-transcript-items", type=non_negative_int, default=200)
     ap.add_argument("--max-faces", type=non_negative_int, default=20)
     ap.add_argument("--max-people", type=non_negative_int, default=20)
