@@ -4,8 +4,10 @@
 ナレッジJSONファイルをAzure AI Foundryのベクターストアにアップロードするスクリプト。
 
 Usage:
-    python upload_to_vectorstore.py --file output/マリオ/mario_keyframe_docs.json --vector-store-id vs_XXXX
-    python upload_to_vectorstore.py --file output/マリオ/mario_keyframe_docs.json --vector-store-id vs_WD5J3B3J4uiDsmbTS0P0N9hM
+    python upload_to_vectorstore.py \\
+        --file output/MyVideo/keyframe_docs.json \\
+        --vector-store-id vs_XXXX \\
+        --base-url https://<your-resource>.services.ai.azure.com/api/projects/<your-project>/openai/v1
 """
 
 import argparse
@@ -94,8 +96,8 @@ def list_vector_store_files(base_url: str, headers: dict, vector_store_id: str) 
 def main() -> None:
     ap = argparse.ArgumentParser(description="ナレッジJSONをベクターストアにアップロード")
     ap.add_argument("--file",             "-f", required=True, help="アップロードするJSONファイルパス")
-    ap.add_argument("--vector-store-id",  "-v", default="vs_WD5J3B3J4uiDsmbTS0P0N9hM", help="ベクターストアID")
-    ap.add_argument("--base-url",         "-b", default="https://se3-tamamiihori-1-1-resource.services.ai.azure.com/api/projects/se3-tamamiihori-1-1/openai/v1")
+    ap.add_argument("--vector-store-id",  "-v", required=True,  help="アップロード先ベクターストアID (例: vs_XXXX)")
+    ap.add_argument("--base-url",         "-b", required=True,  help="Azure AI Foundry ベース URL (例: https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1)")
     args = ap.parse_args()
 
     token = get_access_token()
