@@ -16,6 +16,7 @@ Output: scene_facts.json  (1 scene = 1 doc)
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -43,14 +44,24 @@ def parse_time_to_ms(t: str) -> int:
 
 
 def overlaps(a: Tuple[int, int], b: Tuple[int, int]) -> bool:
-    """[a0,a1] と [b0,b1] が重なるか（境界含む）"""
-    a0, a1 = a
-    b0, b1 = b
-    return not (a1 < b0 or b1 < a0)
+    """半開区間 [start, end) が実時間で重なるかを判定する。
+
+    Video Indexer では隣接シーンの end と start が同値になるため、
+    閉区間だと境界上のデータが両シーンに入ってしまう。
+    例: Scene1=[0, 9133), Scene2=[9133, 10800) → 9133ms のデータは Scene2 にのみ入る。
+    """
+    a_start, a_end = a
+    b_start, b_end = b
+    return a_start < b_end and b_start < a_end
 
 
-def normalize_space(s: str) -> str:
-    return " ".join(str(s).split()).strip()
+def normalize_space(value: Any) -> str:
+    """値を文字列に正規化してスペースを整理する。
+    None を渡すと str(None)="None" になる問題を防ぐ。
+    """
+    if value is None:
+        return ""
+    return " ".join(str(value).split()).strip()
 
 
 def distinct_preserve_order(items: List[str]) -> List[str]:
@@ -64,9 +75,10 @@ def distinct_preserve_order(items: List[str]) -> List[str]:
 
 
 def make_thumbnail_path(thumbnail_id: str, thumbnail_dir: Optional[str]) -> Optional[str]:
+    """OS に依存しないパス結合で KeyFrameThumbnail のパスを返す。"""
     if not thumbnail_id or not thumbnail_dir:
         return None
-    return f"{thumbnail_dir}\\KeyFrameThumbnail_{thumbnail_id}.jpg"
+    return str(Path(thumbnail_dir) / f"KeyFrameThumbnail_{thumbnail_id}.jpg")
 
 
 def extract_instance_range(inst: Dict[str, Any]) -> Optional[Tuple[int, int]]:
@@ -75,6 +87,31 @@ def extract_instance_range(inst: Dict[str, Any]) -> Optional[Tuple[int, int]]:
     if start is None or end is None:
         return None
     return parse_time_to_ms(start), parse_time_to_ms(end)
+
+
+def iter_item_ranges(item: Dict[str, Any]) -> List[Tuple[int, int]]:
+    """instances[]/start/end 形式と appearances[]/startTime/endTime 形式の
+    両方を吸収して時間範囲リストを返す。
+
+    Video Indexer では insight の種類によってスキーマが異なる:
+    - 多くの insight: instances[]{start, end}
+    - namedPeople:    appearances[]{startTime, endTime}  (ポータル出力形式)
+    """
+    ranges: List[Tuple[int, int]] = []
+
+    for inst in item.get("instances") or []:
+        start = inst.get("start")
+        end = inst.get("end")
+        if start and end:
+            ranges.append((parse_time_to_ms(start), parse_time_to_ms(end)))
+
+    for appearance in item.get("appearances") or []:
+        start = appearance.get("startTime")
+        end = appearance.get("endTime")
+        if start and end:
+            ranges.append((parse_time_to_ms(start), parse_time_to_ms(end)))
+
+    return ranges
 
 
 def collect_text_items_for_scene(
@@ -90,9 +127,8 @@ def collect_text_items_for_scene(
         if not text:
             continue
 
-        for inst in item.get("instances", []) or []:
-            rng = extract_instance_range(inst)
-            if rng and overlaps(scene_range, rng):
+        for rng in iter_item_ranges(item):
+            if overlaps(scene_range, rng):
                 out.append(text)
                 break
 
@@ -114,13 +150,8 @@ def collect_named_entities_for_scene(
         if not name:
             continue
 
-        hit = False
-        for inst in item.get("instances", []) or []:
-            rng = extract_instance_range(inst)
-            if rng and overlaps(scene_range, rng):
-                hit = True
-                break
-
+        # instances と appearances 両形式に対応
+        hit = any(overlaps(scene_range, rng) for rng in iter_item_ranges(item))
         if not hit:
             continue
 
@@ -128,7 +159,7 @@ def collect_named_entities_for_scene(
             continue
         seen.add(name)
 
-        entry = {"name": name}
+        entry: Dict[str, Any] = {"name": name}
         if confidence_field in item and item.get(confidence_field) is not None:
             entry["confidence"] = item.get(confidence_field)
 
@@ -148,40 +179,59 @@ def collect_detected_objects_for_scene(
     scene_range: Tuple[int, int],
     max_items: int = 50,
 ) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
-    seen = set()
+    """Video Indexer の detectedObjects をカテゴリ単位に集約する。
+
+    公式スキーマでは "name" ではなく "displayName" / "type" を使用する。
+    同一カテゴリでも別 ID が存在する (例: 2台の車は id:1, id:23) ため、
+    ID 単位で出現を数えつつ、カテゴリ名でグループ化して返す。
+    build_knowledge.py との互換性のため "name" キーは維持する。
+    """
+    # カテゴリ名 -> 集計データ
+    category_map: Dict[str, Dict[str, Any]] = {}
 
     for item in items:
-        name = normalize_space(item.get("name", ""))
+        # 公式スキーマ: displayName > name > type の優先順でフォールバック
+        name = normalize_space(
+            item.get("displayName") or item.get("name") or item.get("type") or ""
+        )
         if not name:
             continue
 
-        matched_ranges: List[Tuple[int, int]] = []
-        for inst in item.get("instances", []) or []:
-            rng = extract_instance_range(inst)
-            if rng and overlaps(scene_range, rng):
-                matched_ranges.append(rng)
+        object_id = item.get("id")
 
+        matched_ranges = [
+            rng for rng in iter_item_ranges(item)
+            if overlaps(scene_range, rng)
+        ]
         if not matched_ranges:
             continue
 
-        if name in seen:
-            continue
-        seen.add(name)
+        confidences = [
+            float(inst["confidence"])
+            for inst in (item.get("instances") or [])
+            if inst.get("confidence") is not None
+        ]
 
-        entry = {
-            "name": name,
-            "count": len(matched_ranges),
-        }
-        if item.get("thumbnailId"):
-            entry["thumbnailId"] = item["thumbnailId"]
+        if name not in category_map:
+            category_map[name] = {
+                "name": name,
+                "objectCount": 0,
+                "objectIds": [],
+                "instanceCount": 0,
+                "maxConfidence": None,
+            }
 
-        results.append(entry)
+        cat = category_map[name]
+        cat["objectCount"] += 1
+        if object_id is not None:
+            cat["objectIds"].append(object_id)
+        cat["instanceCount"] += len(matched_ranges)
+        if confidences:
+            best = max(confidences)
+            if cat["maxConfidence"] is None or best > cat["maxConfidence"]:
+                cat["maxConfidence"] = best
 
-        if len(results) >= max_items:
-            break
-
-    return results
+    return list(category_map.values())[:max_items]
 
 
 def pick_keyframes_for_scene(
@@ -190,20 +240,14 @@ def pick_keyframes_for_scene(
     max_frames: int = 2,
     thumbnail_dir: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    shots[].keyFrames[].instances の start/end が scene と重なるものから代表を選ぶ。
+    """shots[].keyFrames[].instances の start/end が scene と重なるものから代表を選ぶ。
     出力には thumbnailId / imagePath を含める。
     代表: 先頭 + 中央(近いもの) で最大2枚。
     """
     candidates: List[Dict[str, Any]] = []
 
     for shot in shots:
-        shot_hit = False
-        for inst in shot.get("instances", []) or []:
-            rng = extract_instance_range(inst)
-            if rng and overlaps(scene_range, rng):
-                shot_hit = True
-                break
+        shot_hit = any(overlaps(scene_range, rng) for rng in iter_item_ranges(shot))
         if not shot_hit:
             continue
 
@@ -219,7 +263,7 @@ def pick_keyframes_for_scene(
 
                 time_ms = rng[0]
                 thumbnail_id = inst.get("thumbnailId") or kf.get("thumbnailId")
-                candidate = {
+                candidate: Dict[str, Any] = {
                     "timeMs": time_ms,
                     "keyFrameId": kf_id,
                 }
@@ -238,7 +282,7 @@ def pick_keyframes_for_scene(
     candidates.sort(key=lambda x: x["timeMs"])
 
     unique: List[Dict[str, Any]] = []
-    seen = set()
+    seen: set = set()
     for c in candidates:
         kid = c["keyFrameId"]
         if kid not in seen:
@@ -317,9 +361,8 @@ def aggregate_scene_facts(
             name = normalize_space(lb.get("name", ""))
             if not name:
                 continue
-            for li in lb.get("instances", []) or []:
-                rng = extract_instance_range(li)
-                if rng and overlaps(scene_range, rng):
+            for rng in iter_item_ranges(lb):
+                if overlaps(scene_range, rng):
                     labels.append(name)
                     break
         labels = distinct_preserve_order(labels)[:max_labels]
@@ -367,7 +410,6 @@ def aggregate_scene_facts(
             "ocr_text": ocr_text_joined,
             "transcript_text": transcript_text_joined,
             "labels": labels,
-            "keywords": [],
             "keyframes": keyframes,
             "representativeImagePath": representative_image_path,
             "faces": faces,
@@ -379,26 +421,35 @@ def aggregate_scene_facts(
     return docs
 
 
+def non_negative_int(value: str) -> int:
+    """argparse type checker: 0 以上の整数のみ受け付ける。"""
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("value must be zero or greater")
+    return number
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", "-i", required=True, help="Video Indexer export JSON path")
     ap.add_argument("--output", "-o", required=True, help="Output JSON path")
     ap.add_argument("--video-index", type=int, default=0, help="videos[] index")
-    ap.add_argument("--max-ocr-items", type=int, default=200)
-    ap.add_argument("--max-labels", type=int, default=50)
-    ap.add_argument("--max-keyframes", type=int, default=2)
-    ap.add_argument("--max-transcript-items", type=int, default=200)
-    ap.add_argument("--max-faces", type=int, default=20)
-    ap.add_argument("--max-people", type=int, default=20)
-    ap.add_argument("--max-objects", type=int, default=50)
+    ap.add_argument("--max-ocr-items", type=non_negative_int, default=200)
+    ap.add_argument("--max-labels", type=non_negative_int, default=50)
+    ap.add_argument("--max-keyframes", type=non_negative_int, default=2)
+    ap.add_argument("--max-transcript-items", type=non_negative_int, default=200)
+    ap.add_argument("--max-faces", type=non_negative_int, default=20)
+    ap.add_argument("--max-people", type=non_negative_int, default=20)
+    ap.add_argument("--max-objects", type=non_negative_int, default=50)
     ap.add_argument(
         "--thumbnail-dir",
         default=None,
-        help="KeyFrameThumbnail フォルダの親相対パス。例: chapter3_20260131_194157\\_KeyFrameThumbnail の親となる chapter3_20260131_194157"
+        help="KeyFrameThumbnail フォルダのパス。例: chapter3_20260131/_KeyFrameThumbnail"
     )
     args = ap.parse_args()
 
-    with open(args.input, "r", encoding="utf-8") as f:
+    # BOM 付き UTF-8 (ポータルダウンロード等) も読み込めるよう utf-8-sig を使用
+    with open(args.input, "r", encoding="utf-8-sig") as f:
         vi_json = json.load(f)
 
     docs = aggregate_scene_facts(
@@ -413,6 +464,9 @@ def main():
         max_objects=args.max_objects,
         thumbnail_dir=args.thumbnail_dir,
     )
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=2)
