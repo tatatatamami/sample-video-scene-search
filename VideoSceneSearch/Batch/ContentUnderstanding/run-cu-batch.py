@@ -46,7 +46,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
-API_VERSION = "2025-05-01-preview"
+API_VERSION = "2025-11-01"
 TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default"
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
 TOKEN_REFRESH_EVERY = 50   # N 枚ごとにトークンを再取得
