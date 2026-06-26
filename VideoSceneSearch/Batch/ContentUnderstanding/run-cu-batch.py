@@ -256,6 +256,18 @@ def _poll_operation(op_url: str, poll_interval: float) -> dict:
     raise TimeoutError(f"Content Understanding 操作がタイムアウトしました ({POLL_TIMEOUT_SECONDS}s)")
 
 
+def _decode_field(fval: dict):
+    """Content Understanding フィールド値を Python ネイティブ型に変換する。"""
+    for key in ("valueString", "valueNumber", "valueInteger", "valueBoolean", "valueDate", "valueTime"):
+        if key in fval:
+            return fval[key]
+    if "valueArray" in fval:
+        return [_decode_field(item) for item in fval["valueArray"]]
+    if "valueObject" in fval:
+        return {name: _decode_field(v) for name, v in fval["valueObject"].items()}
+    return fval.get("content")
+
+
 def _extract_fields(result: dict) -> dict:
     """
     Content Understanding レスポンスから fields を抽出し、
@@ -268,16 +280,7 @@ def _extract_fields(result: dict) -> dict:
     for content in contents:
         fields: dict = content.get("fields", {})
         for name, fval in fields.items():
-            # CU のフィールド値は {valueString: "..."} / {valueArray: [...]} 形式
-            if "valueString" in fval:
-                extracted[name] = fval["valueString"]
-            elif "valueArray" in fval:
-                extracted[name] = [
-                    (item.get("valueString") or item.get("content") or str(item))
-                    for item in fval["valueArray"]
-                ]
-            elif "content" in fval:
-                extracted[name] = fval["content"]
+            extracted[name] = _decode_field(fval)
         break  # 最初の content のみ使用
 
     return extracted
