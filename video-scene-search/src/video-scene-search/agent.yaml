@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
+kind: hosted
+name: video-scene-search
+description: |
+    Azure AI Foundry hosted agent for video scene search. Analyzes user queries about video content
+    and returns structured JSON results containing relevant scenes with timestamps, confidence scores,
+    and descriptive evidence. Designed for the Sample Video Scene Search demo application.
+metadata:
+    tags:
+        - AI Agent Hosting
+        - Responses Protocol
+        - Agent Framework
+        - .NET
+protocols:
+    - protocol: responses
+      version: 1.0.0
+resources:
+    cpu: "0.5"
+    memory: 1Gi
+environment_variables:
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+code_configuration:
+    runtime: dotnet_10
+    entry_point: hello-world.dll
+    dependency_resolution: remote_build

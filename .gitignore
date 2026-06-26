@@ -22,6 +22,31 @@ VideoSceneSearch/wwwroot/videos/*.mp4
 VideoSceneSearch/wwwroot/videos/*.avi
 VideoSceneSearch/wwwroot/videos/*.mov
 VideoSceneSearch/wwwroot/videos/*.mkv
+VideoSceneSearch/wwwroot/videos/*.webm
+
+# Batch processing - input keyframes (large image assets, not for repo)
+VideoSceneSearch/Batch/ContentUnderstanding/input/
+
+# Batch processing - output (generated per-video, not for repo)
+VideoSceneSearch/Batch/ContentUnderstanding/output/
+VideoSceneSearch/Batch/SceneAggregate/output/
+
+# Batch log files (generated at runtime)
+VideoSceneSearch/Batch/ContentUnderstanding/batch-log.txt
+
+# Video-specific batch scripts (generated per-video)
+VideoSceneSearch/Batch/ContentUnderstanding/run-batch-*.ps1
+!VideoSceneSearch/Batch/ContentUnderstanding/run-batch.ps1
+
+# Video-specific field schemas (generated per-video)
+VideoSceneSearch/Batch/ContentUnderstanding/FeldSchema_*.json
+!VideoSceneSearch/Batch/ContentUnderstanding/FeldSchema_sample.json
+
+# SceneAggregate input data (Video Indexer insights, generated per-video)
+VideoSceneSearch/Batch/SceneAggregate/input/
+
+# Face name alias overrides (contains personal names, user-defined)
+VideoSceneSearch/Batch/SceneAggregate/face_name_aliases.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

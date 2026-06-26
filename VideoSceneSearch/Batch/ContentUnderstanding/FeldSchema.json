@@ -1,0 +1,42 @@
+{
+	"fieldSchema": {
+		"fields": {
+			"imagePath": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return EXACTLY the file name of the input image and nothing else. Do not add explanation, path prefix, or suffix. Example: KeyFrameThumbnail_cfe02bc1-b238-4732-89db-5e5d7d4305ff.jpg"
+			},
+			"description": {
+				"type": "string",
+				"method": "generate",
+				"description": "Provide a short natural-language description of what is visually happening in this frame. Focus on the main subject, visible facial expression, shot composition, and notable objects. Write in Japanese. Keep it within 1-2 sentences. Do not mention uncertainty unless necessary."
+			},
+			"subject": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE primary subject from the following values only: GIGI, HATHAWAY, KENNETH, GUNDAM, MOBILE_SUIT, HUMAN_FACE, MULTIPLE_CHARACTERS, NO_CLEAR_SUBJECT. Choose the single most visually dominant subject in the frame. Use HUMAN_FACE when a face is clearly visible but the identity is unknown. Do not generate new values."
+			},
+			"shot_type": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE value from the following: EXTREME_CLOSEUP, CLOSEUP, MEDIUM, WIDE, UNKNOWN. EXTREME_CLOSEUP means only part of the face or object fills most of the frame. CLOSEUP means face or upper body dominates the frame. MEDIUM means character body from waist or torso area is visible. WIDE means full body or large background is dominant. UNKNOWN means it cannot be determined. Do not generate new values."
+			},
+			"emotion": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE value from the following: CRYING, SAD, ANGRY, TENSE, CALM, NEUTRAL, UNKNOWN. Choose based only on visible facial expression and scene appearance. If tears are clearly visible or the person is visibly crying, use CRYING. If sadness is implied but crying is not clearly visible, use SAD. Do not infer from plot knowledge outside the image. Do not generate new values."
+			},
+			"scene_type": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE value from the following: DIALOGUE, CHARACTER_REACTION, ACTION, BATTLE, MOBILE_SUIT_APPEARANCE, EXPLOSION, FLASHBACK, TITLE_CARD, ENVIRONMENT, UNKNOWN. DIALOGUE means characters appear to be speaking. CHARACTER_REACTION means emotional or expressive reaction shot. ACTION means visible movement but not clearly battle. BATTLE means combat or weapon usage. MOBILE_SUIT_APPEARANCE means Gundam or mobile suit is the main visual focus. EXPLOSION means fire or destruction is dominant. FLASHBACK means memory-like visual. TITLE_CARD means text or title screen. ENVIRONMENT means scenery without clear action. UNKNOWN means cannot determine. Do not generate new values."
+			},
+			"objects": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return zero or more values from the following list only: GUNDAM, MOBILE_SUIT, FACE, TEARS, WEAPON, EXPLOSION, TEXT_ON_SCREEN, VEHICLE, BUILDING, SKY. Return only clearly visible objects or entities. If none apply, return an empty list. Do not generate new values."
+			}
+		},
+		"definitions": {}
+	}
+}

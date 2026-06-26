@@ -1,48 +1,260 @@
-# sample-video-scene-search
+# Video Scene Search / 動画シーン検索
 
-🎬 動画シーン検索 UI（最小構成）- Azure AI Foundry Agent 利用 / .NET 8 C# / Entra ID 認証
+**日本語** | [English](#english)
+
+Azure AI Foundry と GPT-4.1 Vision を活用した、動画のキーフレームを自然言語で検索できるデモアプリケーションです。
+
+---
 
 ## 概要
 
-このプロジェクトは、Azure AI Foundry 上で作成された「動画シーン検索エージェント」を呼び出し、複数動画メタデータを横断検索して結果を UI に表示するシステムです。
+動画を Azure Video Indexer で解析し、各シーンのキーフレームを GPT-4.1 Vision で詳細に説明。その結果をベクターストアに登録することで、エージェントが自然言語の質問に対して最も関連性の高いシーンを返します。
 
-### 主な機能
+```
+動画ファイル
+    ↓
+Azure Video Indexer（キーフレーム抽出・文字起こし・人物認識）
+    ↓
+GPT-4.1 Vision（キーフレーム画像の詳細説明を生成）
+    ↓
+Azure AI Foundry ベクターストア（検索インデックス）
+    ↓
+ASP.NET Core Razor Pages（チャット UI で自然言語検索）
+```
+
+## 主な機能
 
 - 自然言語による動画シーン検索
-- Azure AI Foundry Agent との連携（応答 API エンドポイント）
-- **Microsoft Entra ID 認証**（API キー不要）
-- JSON レスポンスの表示
-- 動画の再生とタイムスタンプによるシーク機能
+- Azure AI Foundry Agent との連携（File Search / Vector Store）
+- **Microsoft Entra ID 認証**（API キー不要・`az login` または Managed Identity）
+- 検索結果から動画を指定タイムスタンプで再生
 
 ## 技術スタック
 
-- **.NET 8**
-- **ASP.NET Core** (Minimal API + Razor Pages)
-- **Azure.Identity** (DefaultAzureCredential)
-- **HttpClientFactory**
-- HTML5 `<video>` タグ
+| コンポーネント | 技術 |
+|---|---|
+| Web アプリ | ASP.NET Core 8 Razor Pages |
+| AI エージェント | Azure AI Foundry Agent (File Search) |
+| 画像解析 | Azure OpenAI GPT-4.1 Vision |
+| 動画解析 | Azure Video Indexer |
+| ベクター検索 | Azure AI Foundry Vector Store |
+| 認証 | Azure.Identity / DefaultAzureCredential |
 
-## アーキテクチャ
+---
+
+## セットアップ手順
+
+### 前提条件
+
+- .NET 8 SDK
+- Azure CLI（`az login` 済み）
+- Azure AI Foundry プロジェクト・エージェント作成済み
+- Python 3.9+（バッチ処理用）
+
+### 1. リポジトリのクローン
+
+```bash
+git clone https://github.com/your-username/video-scene-search.git
+cd video-scene-search
+```
+
+### 2. アプリ設定
+
+```bash
+cd VideoSceneSearch
+dotnet user-secrets set "AzureAIFoundry:Endpoint" "https://your-endpoint"
+dotnet user-secrets set "AzureAIFoundry:Scope" "https://cognitiveservices.azure.com/.default"
+```
+
+詳細は [CONFIGURATION.md](VideoSceneSearch/CONFIGURATION.md) を参照してください。
+
+### 3. アプリ起動
+
+```bash
+dotnet run
+```
+
+ブラウザで表示される URL にアクセスし、自然言語で動画シーンを検索できます。
+
+---
+
+## バッチパイプライン（動画の登録）
+
+### Step 1: キーフレーム画像の解析（GPT-4.1 Vision）
+
+```powershell
+cd VideoSceneSearch/Batch/ContentUnderstanding
+
+.\run-batch.ps1 `
+    -InputDir "input\YourVideoKeyFrames" `
+    -OutputDir "output\YourVideo" `
+    -SchemaFile "FeldSchema_sample.json" `
+    -VideoTitle "Your Video" `
+    -ResourceEndpoint "https://your-resource.services.ai.azure.com"
+```
+
+`FeldSchema_sample.json` をコピーして動画の内容に合わせてカスタマイズしてください。
+
+### Step 2: ナレッジドキュメント生成
+
+```bash
+cd VideoSceneSearch/Batch/SceneAggregate
+
+python build_knowledge.py \
+    --scene-facts output/your-video/scene_facts.json \
+    --cu-output-dir ../ContentUnderstanding/output/YourVideo \
+    --output output/your-video/knowledge_docs.json \
+    --video-id your-video-id
+
+python build_keyframe_knowledge.py \
+    --input output/your-video/knowledge_docs.json \
+    --output output/your-video/keyframe_docs.json
+```
+
+### Step 3: ベクターストアへのアップロード
+
+```bash
+python upload_to_vectorstore.py \
+    --file output/your-video/keyframe_docs.json \
+    --vector-store-id vs_your_vector_store_id
+```
+
+### Step 4: 動画マッピングの登録
+
+`VideoSceneSearch/videomapping.json` に動画 ID とファイルパスを追加します：
+
+```json
+{
+  "videos": {
+    "your-video-id": {
+      "title": "動画タイトル",
+      "file": "/videos/your-video.mp4",
+      "thumbnail": ""
+    }
+  }
+}
+```
+
+---
+
+## プロジェクト構造
 
 ```
-Browser
-  ↓
-ASP.NET Core (.NET 8)
-  ├─ Razor Pages UI
-  ├─ Minimal API (/api/scene-search)
-  └─ Foundry Agent Client（Entra ID）
-        ↓
-Azure AI Foundry Agent（応答 API エンドポイント）
+VideoSceneSearch/
+├── Pages/                          # Razor Pages UI
+├── Services/                       # Foundry Agent クライアント
+├── Models/                         # データモデル
+├── wwwroot/videos/                 # 動画ファイル置き場（.gitignore 対象）
+├── videomapping.json               # 動画IDとファイルパスのマッピング
+├── appsettings.json                # アプリ設定（シークレット除く）
+├── CONFIGURATION.md                # 設定ガイド
+└── Batch/
+    ├── ContentUnderstanding/
+    │   ├── run-batch.ps1           # 汎用バッチ実行スクリプト
+    │   ├── FeldSchema_sample.json  # フィールドスキーマ（サンプル）
+    │   ├── input/                  # キーフレーム画像置き場（.gitignore 対象）
+    │   └── output/                 # 解析結果（.gitignore 対象）
+    └── SceneAggregate/
+        ├── build_knowledge.py      # シーン単位ドキュメント生成
+        ├── build_keyframe_knowledge.py  # キーフレーム単位に変換
+        ├── upload_to_vectorstore.py     # ベクターストアへアップロード
+        ├── face_name_aliases.json.sample # 人物名エイリアス設定例
+        └── output/                 # 生成ドキュメント（.gitignore 対象）
 ```
 
-## 認証方式
+---
 
-⚠️ **重要**: API キーは使用しません。Microsoft Entra ID（OAuth2 Bearer トークン）による認証が必須です。
+<a name="english"></a>
 
-### トークン取得方法
+# Video Scene Search
 
-- **ローカル開発**: `az login` で Azure CLI 認証
-- **Azure 上**: Managed Identity を使用
+A demo application for searching video scenes using natural language, powered by Azure AI Foundry and GPT-4.1 Vision.
+
+## Overview
+
+Videos are analyzed by Azure Video Indexer to extract keyframes. GPT-4.1 Vision generates detailed descriptions of each keyframe, which are indexed in a vector store. An AI agent returns the most relevant scenes in response to natural language queries.
+
+## Features
+
+- Natural language video scene search
+- Azure AI Foundry Agent integration (File Search / Vector Store)
+- **Microsoft Entra ID authentication** (no API key required — uses `az login` or Managed Identity)
+- Play video at the matched scene timestamp
+
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| Web App | ASP.NET Core 8 Razor Pages |
+| AI Agent | Azure AI Foundry Agent (File Search) |
+| Image Analysis | Azure OpenAI GPT-4.1 Vision |
+| Video Analysis | Azure Video Indexer |
+| Vector Search | Azure AI Foundry Vector Store |
+| Auth | Azure.Identity / DefaultAzureCredential |
+
+## Prerequisites
+
+- .NET 8 SDK
+- Azure CLI (logged in with `az login`)
+- Azure AI Foundry project with an agent created
+- Python 3.9+ (for batch processing)
+
+## Quick Start
+
+```bash
+git clone https://github.com/your-username/video-scene-search.git
+cd video-scene-search/VideoSceneSearch
+
+dotnet user-secrets set "AzureAIFoundry:Endpoint" "https://your-endpoint"
+dotnet user-secrets set "AzureAIFoundry:Scope" "https://cognitiveservices.azure.com/.default"
+
+dotnet run
+```
+
+See [CONFIGURATION.md](VideoSceneSearch/CONFIGURATION.md) for full options.
+
+## Batch Pipeline
+
+### 1. Analyze keyframes
+
+```powershell
+.\run-batch.ps1 -InputDir "input\MyVideo" -OutputDir "output\MyVideo" `
+    -SchemaFile "FeldSchema_sample.json" -VideoTitle "My Video" `
+    -ResourceEndpoint "https://your-resource.services.ai.azure.com"
+```
+
+### 2. Build knowledge documents
+
+```bash
+python build_knowledge.py --scene-facts ... --cu-output-dir ... --output ... --video-id ...
+python build_keyframe_knowledge.py --input ... --output ...
+```
+
+### 3. Upload to vector store
+
+```bash
+python upload_to_vectorstore.py --file keyframe_docs.json --vector-store-id vs_xxx
+```
+
+### 4. Register video mapping
+
+Add your video to `videomapping.json`:
+
+```json
+{
+  "videos": {
+    "your-video-id": {
+      "title": "Your Video Title",
+      "file": "/videos/your-video.mp4",
+      "thumbnail": ""
+    }
+  }
+}
+```
+
+## License
+
+MIT
 
 ## セットアップ
 

@@ -30,25 +30,26 @@
                 </div>
             </section>
 
-            <section class="results-section">
-                <h2>検索結果</h2>
-                <div id="resultsContainer">
-                    <p class="no-results">検索結果がここに表示されます</p>
-                </div>
-            </section>
-
-            <section class="video-section" style="display: none;">
-                <h2>動画プレイヤー</h2>
-                <div class="video-container">
-                    <video id="videoPlayer" controls>
-                        <p>お使いのブラウザは動画タグをサポートしていません。</p>
-                    </video>
-                    <div class="video-info">
-                        <h3 id="videoTitle"></h3>
-                        <p id="videoDescription"></p>
+            <h2 class="results-heading">検索結果</h2>
+            <div class="content-layout">
+                <section class="results-section">
+                    <div id="resultsContainer">
+                        <p class="no-results">検索結果がここに表示されます</p>
                     </div>
-                </div>
-            </section>
+                </section>
+
+                <aside class="video-section" style="display: none;">
+                    <div class="video-container">
+                        <video id="videoPlayer" controls>
+                            <p>お使いのブラウザは動画タグをサポートしていません。</p>
+                        </video>
+                        <div class="video-info">
+                            <h3 id="videoTitle"></h3>
+                            <p id="videoDescription"></p>
+                        </div>
+                    </div>
+                </aside>
+            </div>
         </main>
     </div>
 
@@ -71,9 +72,7 @@
                 const response = await fetch('/api/video-mapping');
                 if (response.ok) {
                     videoMapping = await response.json();
-                    console.log('Video mapping loaded:', videoMapping);
                 } else {
-                    console.warn('Failed to load video mapping, using default');
                     // Fallback to sample videos
                     videoMapping = {
                         'video1': {
@@ -139,13 +138,6 @@
 
         function displayResults(data) {
             try {
-                console.log('Received data:', data);
-                console.log('First scene:', data?.scenes?.[0]);
-                console.log('First scene mode:', data?.scenes?.[0]?.mode);
-                console.log('First scene location:', data?.scenes?.[0]?.location);
-                console.log('First scene tags:', data?.scenes?.[0]?.tags);
-                console.log('First scene actions:', data?.scenes?.[0]?.actions);
-                
                 if (!data || !data.scenes || data.scenes.length === 0) {
                     resultsContainer.innerHTML = '<p class="no-results">検索結果が見つかりませんでした</p>';
                     return;
@@ -196,7 +188,8 @@
                 <div class="scene-header">
                     <div class="scene-title">
                         <strong>シーン ${index + 1}</strong>
-                        ${scene.videoId ? `<span class="video-id">Video ID: ${escapeHtml(scene.videoId)}</span>` : ''}
+                        ${scene.videoId ? `<span class="scene-video-title">${escapeHtml(videoMapping[scene.videoId]?.title || scene.videoId)}</span>` : ''}
+                        ${scene.videoId ? `<span class="video-id">ID: ${escapeHtml(scene.videoId)}</span>` : ''}
                     </div>
                     <span class="confidence-badge ${confidenceClass}">
                         信頼度: ${confidenceLabel} (${(scene.confidence * 100).toFixed(0)}%)
@@ -225,7 +218,7 @@
                         </div>
                     ` : ''}
                 </div>
-                ${scene.startSeconds > 0 ? `
+                ${scene.videoId ? `
                 <div class="scene-actions">
                     <button class="play-button" data-video-id="${escapeHtml(scene.videoId)}" 
                             data-start="${scene.startSeconds}"
@@ -247,47 +240,12 @@
             return card;
         }
 
-        function createResultCard(result, index) {
-            const card = document.createElement('div');
-            card.className = 'result-card';
-
-            const videoId = result.videoId || result.video_id || `video${index + 1}`;
-            const title = result.title || result.Title || '無題';
-            const startSec = result.startSec || result.start_sec || result.StartSec || 0;
-            const endSec = result.endSec || result.end_sec || result.EndSec || 0;
-            const description = result.description || result.Description || '';
-            const score = result.score || result.Score || 0;
-
-            card.innerHTML = `
-                <div class="result-header">
-                    <h4>${escapeHtml(title)}</h4>
-                    <span class="score">Score: ${score.toFixed(2)}</span>
-                </div>
-                <p class="result-time">⏱️ ${formatTime(startSec)} - ${formatTime(endSec)}</p>
-                <p class="result-description">${escapeHtml(description)}</p>
-                <button class="play-button" data-video-id="${videoId}" data-start="${startSec}" data-title="${escapeHtml(title)}" data-description="${escapeHtml(description)}">
-                    ▶️ 動画を再生
-                </button>
-            `;
-
-            const playButton = card.querySelector('.play-button');
-            playButton.addEventListener('click', () => {
-                playVideo(videoId, startSec, title, description);
-            });
-
-            return card;
-        }
-
         // Store the current end time for auto-pause
         let currentEndTime = null;
         let timeUpdateHandler = null;
 
         function playVideo(videoId, startSec, endSec, title, description) {
-            console.log('playVideo called with:', { videoId, startSec, endSec, title, description });
-            console.log('videoMapping:', videoMapping);
-
             const videoInfo = videoMapping[videoId];
-            console.log('videoInfo for', videoId, ':', videoInfo);
 
             if (!videoInfo) {
                 alert(`動画ID "${videoId}" の情報が見つかりません。videomapping.json に設定を追加してください。`);
@@ -295,7 +253,6 @@
             }
 
             const videoUrl = videoInfo.file || videoInfo;
-            console.log('Loading video from:', videoUrl);
 
             // Remove previous timeupdate handler if exists
             if (timeUpdateHandler) {
@@ -309,7 +266,6 @@
             timeUpdateHandler = () => {
                 if (currentEndTime && videoPlayer.currentTime >= currentEndTime) {
                     videoPlayer.pause();
-                    console.log('Auto-paused at end time:', currentEndTime);
                     videoDescription.textContent = `${description} (シーン終了: ${formatTime(currentEndTime)}で自動停止)`;
                 }
             };
@@ -326,9 +282,8 @@
 
             // Wait for enough data to be loaded
             videoPlayer.addEventListener('canplay', () => {
-                console.log('Video can play, seeking to:', startSec);
                 videoPlayer.currentTime = startSec;
-                videoPlayer.play().catch(e => console.log('Auto-play prevented:', e));
+                videoPlayer.play().catch(() => {});
             }, { once: true });
 
             // Error handler
@@ -338,9 +293,6 @@
                 console.error('Video error message:', videoPlayer.error?.message);
                 videoDescription.textContent = '動画の読み込みに失敗しました。ファイルが存在するか確認してください。';
             }, { once: true });
-
-            // Scroll to video player
-            videoSection.scrollIntoView({ behavior: 'smooth' });
 
             // Start loading the video
             videoPlayer.load();

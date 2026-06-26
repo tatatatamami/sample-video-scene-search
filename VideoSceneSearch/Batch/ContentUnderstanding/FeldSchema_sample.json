@@ -1,0 +1,41 @@
+{
+	"fieldSchema": {
+		"fields": {
+			"imagePath": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return EXACTLY the file name of the input image and nothing else. Do not add explanation, path prefix, or suffix. Example: KeyFrameThumbnail_cfe02bc1-b238-4732-89db-5e5d7d4305ff.jpg"
+			},
+			"description": {
+				"type": "string",
+				"method": "generate",
+				"description": "Provide a detailed natural-language description (3-5 sentences) of what is visually happening in this frame. This description is used for semantic search, so be specific and thorough. Include: the main visual content, any text visible on screen, the context or setting, and notable actions or elements. Write in the same language as the video content."
+			},
+			"subject": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE primary subject from the following values only: PERSON, OBJECT, SCENE, TEXT_SCREEN, NO_CLEAR_SUBJECT. PERSON means one or more people are the main focus. OBJECT means a specific object dominates the frame. SCENE means an environment or setting is the primary subject. TEXT_SCREEN means text, title, or overlay fills the frame. Do not generate new values."
+			},
+			"shot_type": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE value from the following: EXTREME_CLOSEUP, CLOSEUP, MEDIUM, WIDE, UNKNOWN. EXTREME_CLOSEUP means only a face or small detail fills most of the frame. CLOSEUP means face or upper body dominates. MEDIUM means a person from waist up or a focused area is visible. WIDE means a full environment or wide scene is shown. UNKNOWN means it cannot be determined. Do not generate new values."
+			},
+			"emotion": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return exactly ONE value from the following: CELEBRATING, TENSE, EXCITED, CALM, NEUTRAL, UNKNOWN. CELEBRATING means visible rejoicing or cheering. TENSE means a high-stakes or intense moment. EXCITED means energetic without a specific celebration. CALM means a relaxed or informational scene. NEUTRAL means no clear emotional tone. UNKNOWN means cannot determine. Do not generate new values."
+			},
+			"objects": {
+				"type": "string",
+				"method": "generate",
+				"description": "Return zero or more clearly visible items from the following list only: FACE, TEXT_ON_SCREEN, CROWD, LOGO, PRODUCT, VEHICLE, ANIMAL, BUILDING, NATURE. Return only clearly visible items. If none apply, return an empty list. Do not generate new values."
+			}
+		},
+		"definitions": {}
+	},
+	"_instructions": {
+		"comment": "This is a sample schema. Copy this file and customize the field descriptions for your video content.",
+		"usage": ".\\run-batch.ps1 -InputDir 'input\\MyVideo' -OutputDir 'output\\MyVideo' -SchemaFile 'FeldSchema_sample.json' -VideoTitle 'My Video'"
+	}
+}

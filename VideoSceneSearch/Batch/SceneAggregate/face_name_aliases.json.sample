@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy this file to face_name_aliases.json and add your own mappings.",
+  "_comment2": "Key: name detected by Azure Video Indexer. Value: display name with aliases/readings.",
+  "John Doe": "John Doe (ジョン・ドー)",
+  "Jane Smith": "Jane Smith (ジェーン・スミス)"
+}

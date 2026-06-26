@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Azure.Identity;
 using Microsoft.Extensions.Options;
 using VideoSceneSearch.Models;
 using VideoSceneSearch.Services;
@@ -18,14 +17,9 @@ builder.Configuration.AddJsonFile("videomapping.json", optional: true, reloadOnC
 builder.Services.Configure<VideoMappingSettings>(
     builder.Configuration);
 
-// Register DefaultAzureCredential as singleton for reuse across requests
-builder.Services.AddSingleton<DefaultAzureCredential>();
-
-// Add HttpClient and Foundry Agent Client
-builder.Services.AddHttpClient<IFoundryAgentClient, FoundryAgentClient>();
-
-// Add Response Parser
-builder.Services.AddSingleton<IAgentResponseParser, AgentResponseParser>();
+// FoundryAgentClient を Singleton として登録します。
+// 内部で ResponsesClient を保持し、DefaultAzureCredential によるトークンキャッシュを活用します。
+builder.Services.AddSingleton<IFoundryAgentClient, FoundryAgentClient>();
 
 var app = builder.Build();
 
@@ -59,34 +53,24 @@ app.MapPost("/api/scene-search", async (
 
         // Get JSON response from agent
         var jsonResult = await foundryClient.SearchScenesAsync(request.Query, availableVideos, cancellationToken);
-        
-        // DEBUG: Log the raw JSON from agent
-        logger.LogInformation("=== RAW JSON FROM AGENT ===");
-        logger.LogInformation("{JsonResult}", jsonResult);
-        logger.LogInformation("=== END RAW JSON ===");
-        
+
         // Configure JSON options to be case-insensitive
         var jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         };
-        
-        // Parse the JSON into SceneSearchResponse
-        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(jsonResult, jsonOptions);
 
-        // DEBUG: Log parsed scene data
-        if (sceneResponse?.Scenes != null && sceneResponse.Scenes.Count > 0)
+        // Extract raw JSON from response — LLMs sometimes wrap output in markdown code blocks
+        var cleanJson = jsonResult.Trim();
+        var jsonStart = cleanJson.IndexOf('{');
+        var jsonEnd = cleanJson.LastIndexOf('}');
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
         {
-            var firstScene = sceneResponse.Scenes[0];
-            logger.LogInformation("=== FIRST SCENE PARSED ===");
-            logger.LogInformation("Description (from JSON): {Description}", firstScene.Description ?? "NULL");
-            logger.LogInformation("Evidence (from JSON): {Evidence}", firstScene.Evidence ?? "NULL");
-            logger.LogInformation("Mode: {Mode}", firstScene.Mode ?? "NULL");
-            logger.LogInformation("Location: {Location}", firstScene.Location ?? "NULL");
-            logger.LogInformation("Tags: {Tags}", firstScene.Tags ?? "NULL");
-            logger.LogInformation("Actions: {Actions}", firstScene.Actions ?? "NULL");
-            logger.LogInformation("=== END FIRST SCENE ===");
+            cleanJson = cleanJson[jsonStart..(jsonEnd + 1)];
         }
+
+        // Parse the JSON into SceneSearchResponse
+        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(cleanJson, jsonOptions);
 
         if (sceneResponse?.Scenes == null || sceneResponse.Scenes.Count == 0)
         {
@@ -119,7 +103,7 @@ app.MapPost("/api/scene-search", async (
             }
             if (string.IsNullOrEmpty(scene.Title))
             {
-                scene.Title = "����";
+                scene.Title = "����";
             }
         }
 
