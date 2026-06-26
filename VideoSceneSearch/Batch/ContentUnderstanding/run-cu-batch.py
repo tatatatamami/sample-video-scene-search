@@ -2,18 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Azure Content Understanding を使用してキーフレーム画像をバッチ解析するスクリプト。
-run-batch.ps1 (GPT-4.1 Vision) の 1:1 代替。
 
-変更点:
-  - 入力  : キーフレーム JPG ファイル群 (同じ)
-  - 出力  : KeyFrameThumbnail_{thumbnailId}.json (build_knowledge.py と完全互換)
-  - 認証  : az login 済みの DefaultAzureCredential (同じ)
-  - 解析  : GPT-4.1 Vision の代わりに Azure Content Understanding を使用
-
-Content Understanding の利点:
-  - 動画・画像・音声などマルチモーダル対応
-  - Analyzer を一度登録すれば再利用可能
-  - fieldSchema による構造化出力がネイティブサポート
+FeldSchema_*.json で定義したフィールドを Content Understanding Analyzer に自動登録し、
+入力ディレクトリ内のキーフレーム JPG を一括解析する。
+出力は KeyFrameThumbnail_{thumbnailId}.json 形式で保存され、build_knowledge.py により読み込むことができる。
 
 Prerequisites:
   pip install azure-identity requests
@@ -54,7 +46,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
-API_VERSION = "2025-05-01-preview"   # Content Understanding GA: 2025-05-01-preview
+API_VERSION = "2025-05-01-preview"
 TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default"
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
 TOKEN_REFRESH_EVERY = 50   # N 枚ごとにトークンを再取得
@@ -81,20 +73,18 @@ def load_schema(schema_file: str) -> dict:
 
 def build_cu_fieldschema(schema: dict) -> dict:
     """
-    FeldSchema_*.json の fieldSchema.fields を Content Understanding 形式に変換する。
+    FeldSchema_*.json の fieldSchema.fields を Content Understanding fieldSchema 形式に変換する。
 
     対応ルール:
       - type: string  → type: string, method: generate
       - enum あり     → type: string, method: classify, enum: [...]
       - type: array   → type: array,  method: generate, items: {type: string}
-      - imagePath フィールドは CU では不要なのでスキップ
     """
     source_fields: dict = schema.get("fieldSchema", {}).get("fields", {})
     cu_fields: dict = {}
 
     for name, fdef in source_fields.items():
         if name == "imagePath":
-            # GPT-4.1 用の特殊フィールド。CU では不要
             continue
 
         ftype = fdef.get("type", "string")
