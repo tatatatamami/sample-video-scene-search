@@ -13,22 +13,26 @@
 			},
 			"subject": {
 				"type": "string",
-				"method": "generate",
-				"description": "Return exactly ONE primary subject from the following values only: PERSON, OBJECT, SCENE, TEXT_SCREEN, NO_CLEAR_SUBJECT. PERSON means one or more people are the main focus. OBJECT means a specific object dominates the frame. SCENE means an environment or setting is the primary subject. TEXT_SCREEN means text, title, or overlay fills the frame. Do not generate new values."
+				"method": "classify",
+				"enum": ["PERSON", "OBJECT", "SCENE", "TEXT_SCREEN", "NO_CLEAR_SUBJECT"],
+				"description": "Primary visible subject of the frame."
 			},
 			"shot_type": {
 				"type": "string",
-				"method": "generate",
-				"description": "Return exactly ONE value from the following: EXTREME_CLOSEUP, CLOSEUP, MEDIUM, WIDE, UNKNOWN. EXTREME_CLOSEUP means only a face or small detail fills most of the frame. CLOSEUP means face or upper body dominates. MEDIUM means a person from waist up or a focused area is visible. WIDE means a full environment or wide scene is shown. UNKNOWN means it cannot be determined. Do not generate new values."
+				"method": "classify",
+				"enum": ["EXTREME_CLOSEUP", "CLOSEUP", "MEDIUM", "WIDE", "UNKNOWN"],
+				"description": "Camera shot type of the frame."
 			},
 			"emotion": {
 				"type": "string",
-				"method": "generate",
-				"description": "Return exactly ONE value from the following: CELEBRATING, TENSE, EXCITED, CALM, NEUTRAL, UNKNOWN. CELEBRATING means visible rejoicing or cheering. TENSE means a high-stakes or intense moment. EXCITED means energetic without a specific celebration. CALM means a relaxed or informational scene. NEUTRAL means no clear emotional tone. UNKNOWN means cannot determine. Do not generate new values."
+				"method": "classify",
+				"enum": ["CELEBRATING", "TENSE", "EXCITED", "CALM", "NEUTRAL", "UNKNOWN"],
+				"description": "Overall emotional tone of the frame."
 			},
 			"objects": {
-				"type": "string",
+				"type": "array",
 				"method": "generate",
+				"items": { "type": "string" },
 				"description": "Return zero or more clearly visible items from the following list only: FACE, TEXT_ON_SCREEN, CROWD, LOGO, PRODUCT, VEHICLE, ANIMAL, BUILDING, NATURE. Return only clearly visible items. If none apply, return an empty list. Do not generate new values."
 			}
 		},

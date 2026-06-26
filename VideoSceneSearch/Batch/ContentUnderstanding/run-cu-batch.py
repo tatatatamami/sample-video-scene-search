@@ -188,18 +188,16 @@ def analyze_image(
     1 枚の画像を Content Understanding で解析し、フィールド辞書を返す。
     非同期ジョブ（202 Accepted）をポーリングして完了を待つ。
     """
-    url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={API_VERSION}"
+    url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyzeBinary?api-version={API_VERSION}"
     operation_id = uuid.uuid4().hex
+    mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
 
-    # 画像を multipart/form-data で送信
-    with image_path.open("rb") as f:
-        mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
-        files = {"file": (image_path.name, f, mime)}
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Operation-Id": operation_id,
-        }
-        resp = requests.post(url, headers=headers, files=files, timeout=60)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": mime,
+        "Operation-Id": operation_id,
+    }
+    resp = requests.post(url, headers=headers, data=image_path.read_bytes(), timeout=60)
 
     if resp.status_code == 200:
         return _extract_fields(resp.json())
