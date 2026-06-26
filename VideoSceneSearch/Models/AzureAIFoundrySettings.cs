@@ -5,7 +5,7 @@ public class AzureAIFoundrySettings
     /// <summary>
     /// Azure AI Foundry のホステッドエージェントエンドポイント (ベース URL)。
     /// "/responses" の前までを指定します。
-    /// 例: https://{resource}.services.ai.azure.com/api/projects/{project}/applications/{agent-id}/protocols/openai
+    /// 例: https://{resource}.services.ai.azure.com/api/projects/{project}/agents/{agent-name}/endpoint/protocols/openai
     /// </summary>
     public string Endpoint { get; set; } = string.Empty;
 

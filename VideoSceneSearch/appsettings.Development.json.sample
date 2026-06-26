@@ -6,7 +6,7 @@
     }
   },
   "AzureAIFoundry": {
-    "Endpoint": "https://YOUR-RESOURCE-NAME.services.ai.azure.com/api/projects/YOUR-PROJECT",
-    "AgentName": "YOUR-AGENT-NAME"
+    "Endpoint": "https://YOUR-RESOURCE-NAME.services.ai.azure.com/api/projects/YOUR-PROJECT/agents/YOUR-AGENT-NAME/endpoint/protocols/openai",
+    "ModelDeploymentName": "gpt-4.1"
   }
 }

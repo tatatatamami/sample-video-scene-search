@@ -91,16 +91,26 @@ app.MapPost("/api/scene-search", async (
             // Mode, Location, tags, actions: keep as null/empty if not provided by agent
             // UI will conditionally show these only when they have values
 
-            // VideoId and Title should already be set from agent response
-            // If not set, use fallback values
-            if (string.IsNullOrEmpty(scene.VideoId))
+            // Validate that the videoId returned by the agent actually exists.
+            // If not, exclude the scene (agent hallucinated a videoId).
+            if (!availableVideos.TryGetValue(scene.VideoId ?? "", out var officialTitle))
             {
-                scene.VideoId = $"video{i + 1}";
+                logger.LogWarning(
+                    "Agent returned unknown videoId '{VideoId}' — excluding scene", scene.VideoId);
+                scene.VideoId = null; // mark for removal below
+                continue;
             }
-            if (string.IsNullOrEmpty(scene.Title))
-            {
-                scene.Title = "不明";
-            }
+
+            // Trust the official title from videomapping, not the agent's title.
+            scene.Title = officialTitle;
+        }
+
+        // Remove scenes excluded due to invalid videoId
+        sceneResponse.Scenes = sceneResponse.Scenes.Where(s => s.VideoId != null).ToList();
+
+        if (sceneResponse.Scenes.Count == 0)
+        {
+            return Results.Ok(new { scenes = new List<SceneResult>() });
         }
 
         // Deduplicate scenes with same videoId + start + end timestamps
