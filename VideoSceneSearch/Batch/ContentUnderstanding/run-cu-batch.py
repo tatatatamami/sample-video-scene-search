@@ -122,7 +122,7 @@ def build_cu_fieldschema(schema: dict) -> dict:
 def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict) -> None:
     """
     Content Understanding Analyzer を作成または更新する（PUT は idempotent）。
-    画像解析用に scenario: contentUnderstanding を使用。
+    201 Created の場合は Operation-Location をポーリングして作成完了を待つ。
     """
     url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}"
     headers = {
@@ -130,7 +130,11 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
         "Content-Type": "application/json",
     }
     body = {
-        "scenario": "contentUnderstanding",
+        "description": "Video keyframe scene analyzer",
+        "baseAnalyzerId": "prebuilt-image",
+        "models": {
+            "completion": "gpt-5.2"
+        },
         "fieldSchema": fieldschema,
     }
     resp = requests.put(url, json=body, headers=headers, timeout=60)
@@ -138,7 +142,35 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
         raise RuntimeError(
             f"Analyzer の作成/更新に失敗しました: HTTP {resp.status_code}\n{resp.text}"
         )
+
+    op_url = (
+        resp.headers.get("Operation-Location")
+        or resp.headers.get("operation-location")
+    )
+    if op_url:
+        print(f"  Analyzer '{analyzer_id}' の作成完了を待機中...", end="", flush=True)
+        _poll_analyzer_creation(op_url, token)
+        print(" 完了")
+
     print(f"  Analyzer '{analyzer_id}' を登録しました。")
+
+
+def _poll_analyzer_creation(op_url: str, token: str, poll_interval: float = 3.0) -> None:
+    """Analyzer 作成の非同期ジョブが完了するまでポーリングする。"""
+    headers = {"Authorization": f"Bearer {token}"}
+    while True:
+        time.sleep(poll_interval)
+        resp = requests.get(op_url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        status = data.get("status", "").lower()
+        if status == "succeeded":
+            return
+        if status in ("failed", "canceled"):
+            raise RuntimeError(
+                f"Analyzer の作成が失敗しました: {json.dumps(data, ensure_ascii=False)}"
+            )
+        print(".", end="", flush=True)
 
 
 # ---------------------------------------------------------------------------
