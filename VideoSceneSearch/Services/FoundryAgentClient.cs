@@ -24,6 +24,39 @@ public class FoundryAgentClient : IFoundryAgentClient
     private readonly AzureAIFoundrySettings _settings;
     private readonly ILogger<FoundryAgentClient> _logger;
 
+    // Structured Output schema — agent must return JSON matching this shape.
+    private static readonly BinaryData _responseSchema = BinaryData.FromString("""
+        {
+          "type": "object",
+          "properties": {
+            "scenes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "videoId":    { "type": "string" },
+                  "title":      { "type": "string" },
+                  "start":      { "type": "string" },
+                  "end":        { "type": "string" },
+                  "confidence": { "type": "number" },
+                  "evidence":   { "type": "string" },
+                  "mode":        { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "location":    { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "tags":        { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "actions":     { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "required": ["videoId", "title", "start", "end", "confidence", "evidence",
+                             "mode", "location", "tags", "actions", "description"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["scenes"],
+          "additionalProperties": false
+        }
+        """);
+
     public FoundryAgentClient(
         IOptions<AzureAIFoundrySettings> settings,
         ILogger<FoundryAgentClient> logger)
@@ -33,7 +66,6 @@ public class FoundryAgentClient : IFoundryAgentClient
 
         // Microsoft Entra ID を使用したキーレス認証。
         // Azure AI Foundry のスコープは https://ai.azure.com/.default を使用します。
-        // 参考: https://learn.microsoft.com/azure/ai-foundry/
         var tokenPolicy = new BearerTokenPolicy(
             new DefaultAzureCredential(),
             "https://ai.azure.com/.default");
@@ -68,23 +100,52 @@ public class FoundryAgentClient : IFoundryAgentClient
         var options = new CreateResponseOptions
         {
             Model = _settings.ModelDeploymentName,
-            StreamingEnabled = true
+            TextOptions = new ResponseTextOptions
+            {
+                TextFormat = ResponseTextFormat.CreateJsonSchemaFormat(
+                    "scene_search_response",
+                    _responseSchema,
+                    null,
+                    jsonSchemaIsStrict: true)
+            }
         };
         options.InputItems.Add(ResponseItem.CreateUserMessageItem(message));
 
-        var textBuilder = new StringBuilder();
+        var response = (await _responsesClient.CreateResponseAsync(options, cancellationToken)).Value;
 
-        await foreach (var update in _responsesClient.CreateResponseStreamingAsync(options)
-            .WithCancellation(cancellationToken))
+        _logger.LogInformation(
+            "Response from Foundry Hosted Agent: id={Id}, status={Status}, totalTokens={Tokens}",
+            response.Id, response.Status, response.Usage?.TotalTokenCount);
+
+        if (response.Status == ResponseStatus.Failed)
         {
-            if (update is StreamingResponseOutputTextDeltaUpdate textDelta)
+            throw new InvalidOperationException(
+                $"Agent returned failed status: {response.Error?.Code} - {response.Error?.Message}");
+        }
+
+        if (response.Status == ResponseStatus.Incomplete)
+        {
+            _logger.LogWarning("Agent response was incomplete: {Reason}",
+                response.IncompleteStatusDetails?.Reason);
+        }
+
+        var textBuilder = new StringBuilder();
+        foreach (var item in response.OutputItems)
+        {
+            if (item is MessageResponseItem msg)
             {
-                textBuilder.Append(textDelta.Delta);
+                foreach (var part in msg.Content)
+                {
+                    if (part.Kind == ResponseContentPartKind.OutputText)
+                        textBuilder.Append(part.Text);
+                    else if (part.Kind == ResponseContentPartKind.Refusal)
+                        throw new InvalidOperationException($"Agent refused to answer: {part.Refusal}");
+                }
             }
         }
 
         var result = textBuilder.ToString();
-        _logger.LogInformation("Received response from Foundry Hosted Agent ({Length} chars)", result.Length);
+        _logger.LogInformation("Extracted text from response ({Length} chars)", result.Length);
 
         return result;
     }

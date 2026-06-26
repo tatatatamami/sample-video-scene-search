@@ -65,17 +65,8 @@ app.MapPost("/api/scene-search", async (
             PropertyNameCaseInsensitive = true
         };
 
-        // Extract raw JSON from response — LLMs sometimes wrap output in markdown code blocks
-        var cleanJson = jsonResult.Trim();
-        var jsonStart = cleanJson.IndexOf('{');
-        var jsonEnd = cleanJson.LastIndexOf('}');
-        if (jsonStart >= 0 && jsonEnd > jsonStart)
-        {
-            cleanJson = cleanJson[jsonStart..(jsonEnd + 1)];
-        }
-
-        // Parse the JSON into SceneSearchResponse
-        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(cleanJson, jsonOptions);
+        // Structured Output guarantees valid JSON — no markdown stripping needed
+        var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(jsonResult.Trim(), jsonOptions);
 
         if (sceneResponse?.Scenes == null || sceneResponse.Scenes.Count == 0)
         {
