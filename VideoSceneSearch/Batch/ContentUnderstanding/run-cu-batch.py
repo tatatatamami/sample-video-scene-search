@@ -49,17 +49,18 @@ except ImportError:
 API_VERSION = "2025-11-01"
 TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default"
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
-TOKEN_REFRESH_EVERY = 50   # N 枚ごとにトークンを再取得
+POLL_TIMEOUT_SECONDS = 600  # ポーリングの最大待機時間（秒）
 
 
 # ---------------------------------------------------------------------------
 # 認証
 # ---------------------------------------------------------------------------
+# Credential は一度だけ生成してトークンキャッシュを再利用する
+_CREDENTIAL = DefaultAzureCredential()
+
 
 def get_access_token() -> str:
-    credential = DefaultAzureCredential()
-    token = credential.get_token(TOKEN_SCOPE)
-    return token.token
+    return _CREDENTIAL.get_token(TOKEN_SCOPE).token
 
 
 # ---------------------------------------------------------------------------
@@ -149,18 +150,26 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict)
     )
     if op_url:
         print(f"  Analyzer '{analyzer_id}' の作成完了を待機中...", end="", flush=True)
-        _poll_analyzer_creation(op_url, token)
+        _poll_analyzer_creation(op_url)
         print(" 完了")
 
     print(f"  Analyzer '{analyzer_id}' を登録しました。")
 
 
-def _poll_analyzer_creation(op_url: str, token: str, poll_interval: float = 3.0) -> None:
+def _poll_analyzer_creation(op_url: str, poll_interval: float = 3.0) -> None:
     """Analyzer 作成の非同期ジョブが完了するまでポーリングする。"""
-    headers = {"Authorization": f"Bearer {token}"}
-    while True:
+    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
         time.sleep(poll_interval)
-        resp = requests.get(op_url, headers=headers, timeout=30)
+        resp = requests.get(
+            op_url,
+            headers={"Authorization": f"Bearer {get_access_token()}"},
+            timeout=30,
+        )
+        if resp.status_code in {429, 500, 502, 503, 504}:
+            delay = float(resp.headers.get("Retry-After") or poll_interval)
+            time.sleep(delay)
+            continue
         resp.raise_for_status()
         data = resp.json()
         status = data.get("status", "").lower()
@@ -170,7 +179,10 @@ def _poll_analyzer_creation(op_url: str, token: str, poll_interval: float = 3.0)
             raise RuntimeError(
                 f"Analyzer の作成が失敗しました: {json.dumps(data, ensure_ascii=False)}"
             )
+        if status not in ("running", "notstarted"):
+            raise RuntimeError(f"予期しない Analyzer ステータス: {status}")
         print(".", end="", flush=True)
+    raise TimeoutError(f"Analyzer 作成がタイムアウトしました ({POLL_TIMEOUT_SECONDS}s)")
 
 
 # ---------------------------------------------------------------------------
@@ -215,14 +227,22 @@ def analyze_image(
     if not op_url:
         raise RuntimeError("Operation-Location ヘッダーが見つかりません。")
 
-    return _poll_operation(op_url, token, poll_interval)
+    return _poll_operation(op_url, poll_interval)
 
 
-def _poll_operation(op_url: str, token: str, poll_interval: float) -> dict:
-    headers = {"Authorization": f"Bearer {token}"}
-    while True:
+def _poll_operation(op_url: str, poll_interval: float) -> dict:
+    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
         time.sleep(poll_interval)
-        resp = requests.get(op_url, headers=headers, timeout=30)
+        resp = requests.get(
+            op_url,
+            headers={"Authorization": f"Bearer {get_access_token()}"},
+            timeout=30,
+        )
+        if resp.status_code in {429, 500, 502, 503, 504}:
+            delay = float(resp.headers.get("Retry-After") or poll_interval)
+            time.sleep(delay)
+            continue
         resp.raise_for_status()
         data = resp.json()
         status = data.get("status", "").lower()
@@ -231,7 +251,9 @@ def _poll_operation(op_url: str, token: str, poll_interval: float) -> dict:
             return _extract_fields(data.get("result", {}))
         if status in ("failed", "canceled"):
             raise RuntimeError(f"解析が失敗しました: {json.dumps(data, ensure_ascii=False)}")
-        # running / notStarted → 継続ポーリング
+        if status not in ("running", "notstarted"):
+            raise RuntimeError(f"予期しない操作ステータス: {status}")
+    raise TimeoutError(f"Content Understanding 操作がタイムアウトしました ({POLL_TIMEOUT_SECONDS}s)")
 
 
 def _extract_fields(result: dict) -> dict:
@@ -302,10 +324,27 @@ def save_result(
             "analyzer_id": analyzer_id,
         },
     }
-    with out_path.open("w", encoding="utf-8") as f:
+    temp_path = out_path.with_suffix(".json.tmp")
+    with temp_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    temp_path.replace(out_path)
 
     return out_path
+
+
+def is_valid_output(path: Path) -> bool:
+    """出力済みファイルが有効な JSON 形式かどうかを確認する。"""
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        analysis = data.get("analysis")
+        return (
+            isinstance(analysis, dict)
+            and isinstance(analysis.get("description"), str)
+            and isinstance(analysis.get("objects", []), list)
+        )
+    except (OSError, json.JSONDecodeError):
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +390,11 @@ def parse_args() -> argparse.Namespace:
         "--force",
         action="store_true",
         help="出力済みファイルを上書きして再処理する",
+    )
+    ap.add_argument(
+        "--ensure-analyzer",
+        action="store_true",
+        help="実行前に Analyzer を作成または更新する（初回実行時や定義変更時に指定）",
     )
     return ap.parse_args()
 
@@ -398,14 +442,18 @@ def main() -> None:
 
     # [1] 認証
     print("\n[1/3] 認証中...")
-    token = get_access_token()
+    get_access_token()  # Credential を初期化してトークンを取得
     print("  OK")
 
-    # [2] Analyzer 作成（初回のみ時間がかかる）
-    print(f"\n[2/3] Analyzer を登録中 (ID: {args.analyzer_id})...")
-    schema = load_schema(args.schema_file)
-    fieldschema = build_cu_fieldschema(schema)
-    put_analyzer(endpoint, token, args.analyzer_id, fieldschema)
+    # [2] Analyzer 登録（--ensure-analyzer 指定時のみ）
+    if args.ensure_analyzer:
+        print(f"\n[2/3] Analyzer を登録中 (ID: {args.analyzer_id})...")
+        schema = load_schema(args.schema_file)
+        fieldschema = build_cu_fieldschema(schema)
+        put_analyzer(endpoint, get_access_token(), args.analyzer_id, fieldschema)
+    else:
+        print(f"\n[2/3] Analyzer 登録をスキップ (ID: {args.analyzer_id})")
+        print("  ※ 初回実行時や定義を変更した場合は --ensure-analyzer を指定してください。")
 
     # [3] 画像を 1 枚ずつ解析
     print(f"\n[3/3] 画像を解析中...")
@@ -417,19 +465,15 @@ def main() -> None:
         thumbnail_id = thumbnail_id_from_path(image_path)
         out_path = output_dir / f"KeyFrameThumbnail_{thumbnail_id}.json"
 
-        if out_path.exists() and not args.force:
+        if is_valid_output(out_path) and not args.force:
             skipped += 1
             print(f"  [{idx+1}/{len(images)}] スキップ (既存): {image_path.name}")
             continue
 
-        # 定期的にトークンを更新
-        if idx > 0 and idx % TOKEN_REFRESH_EVERY == 0:
-            token = get_access_token()
-
         print(f"  [{idx+1}/{len(images)}] 解析中: {image_path.name}", end="", flush=True)
         try:
             fields = analyze_image(
-                endpoint, token, args.analyzer_id, image_path, args.poll_interval
+                endpoint, get_access_token(), args.analyzer_id, image_path, args.poll_interval
             )
             saved = save_result(output_dir, image_path, fields, args.analyzer_id)
             print(f" → {saved.name}")
