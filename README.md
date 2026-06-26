@@ -1,14 +1,10 @@
 # Video Scene Search / 動画シーン検索
 
-**日本語** | [English](#english)
-
-Azure AI Foundry と GPT-4.1 Vision を活用した、動画のキーフレームを自然言語で検索できるデモアプリケーションです。
-
----
+Azure AI Foundry と GPT-4.1 Vision を活用した、動画のキーフレームを自然言語で検索できるデモアプリです。
 
 ## 概要
 
-動画を Azure Video Indexer で解析し、各シーンのキーフレームを GPT-4.1 Vision で詳細に説明。その結果をベクターストアに登録することで、エージェントが自然言語の質問に対して最も関連性の高いシーンを返します。
+動画を Azure Video Indexer で解析し、各シーンのキーフレームを GPT-4.1 Vision で詳細説明。結果を Azure AI Foundry のベクターストアに登録することで、エージェントが自然言語の質問に対して最も関連性の高いシーンを返します。
 
 ```
 動画ファイル
@@ -22,19 +18,13 @@ Azure AI Foundry ベクターストア（検索インデックス）
 ASP.NET Core Razor Pages（チャット UI で自然言語検索）
 ```
 
-## 主な機能
-
-- 自然言語による動画シーン検索
-- Azure AI Foundry Agent との連携（File Search / Vector Store）
-- **Microsoft Entra ID 認証**（API キー不要・`az login` または Managed Identity）
-- 検索結果から動画を指定タイムスタンプで再生
-
 ## 技術スタック
 
 | コンポーネント | 技術 |
 |---|---|
 | Web アプリ | ASP.NET Core 8 Razor Pages |
-| AI エージェント | Azure AI Foundry Agent (File Search) |
+| AI エージェント | Azure AI Foundry Hosted Agent |
+| AI クライアント | OpenAI .NET SDK v2 (ResponsesClient) |
 | 画像解析 | Azure OpenAI GPT-4.1 Vision |
 | 動画解析 | Azure Video Indexer |
 | ベクター検索 | Azure AI Foundry Vector Store |
@@ -42,39 +32,188 @@ ASP.NET Core Razor Pages（チャット UI で自然言語検索）
 
 ---
 
-## セットアップ手順
+## 前提条件
 
-### 前提条件
-
-- .NET 8 SDK
-- Azure CLI（`az login` 済み）
-- Azure AI Foundry プロジェクト・エージェント作成済み
+- [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)（`az login` 済み）
+- [azd (Azure Developer CLI)](https://aka.ms/azd)（Foundry Agent デプロイ用）
 - Python 3.9+（バッチ処理用）
+- Azure AI Foundry プロジェクト
+
+---
+
+## セットアップ
 
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/your-username/video-scene-search.git
-cd video-scene-search
+git clone https://github.com/tatatatamami/sample-video-scene-search.git
+cd sample-video-scene-search
 ```
 
-### 2. アプリ設定
+### 2. Foundry Hosted Agent のデプロイ
+
+`video-scene-search/` に azd プロジェクトがあります。
+
+```bash
+cd video-scene-search
+azd auth login
+azd provision
+azd deploy
+```
+
+デプロイ後、エージェントのエンドポイント URL を控えておきます：
+
+```
+https://{resource}.services.ai.azure.com/api/projects/{project}/agents/video-scene-search/endpoint/protocols/openai?api-version=v1
+```
+
+### 3. Web アプリの設定
+
+`VideoSceneSearch/appsettings.Development.json` を作成します（`.gitignore` 対象のため git には含まれません）：
+
+```json
+{
+  "AzureAIFoundry": {
+    "Endpoint": "https://{resource}.services.ai.azure.com/api/projects/{project}/agents/video-scene-search/endpoint/protocols/openai?api-version=v1",
+    "ModelDeploymentName": "gpt-4.1"
+  }
+}
+```
+
+または環境変数で設定する場合（`:` の区切りは `__` に変換）：
+
+```powershell
+$env:AzureAIFoundry__Endpoint = "https://..."
+$env:AzureAIFoundry__ModelDeploymentName = "gpt-4.1"
+```
+
+> **認証**: Microsoft Entra ID を使用します（API キー不要）。`az login` 済みであれば追加設定は不要です。
+
+### 4. Web アプリの起動
 
 ```bash
 cd VideoSceneSearch
-dotnet user-secrets set "AzureAIFoundry:Endpoint" "https://your-endpoint"
-dotnet user-secrets set "AzureAIFoundry:Scope" "https://cognitiveservices.azure.com/.default"
-```
-
-詳細は [CONFIGURATION.md](VideoSceneSearch/CONFIGURATION.md) を参照してください。
-
-### 3. アプリ起動
-
-```bash
 dotnet run
 ```
 
-ブラウザで表示される URL にアクセスし、自然言語で動画シーンを検索できます。
+`http://localhost:5062` にアクセスして動作確認できます。
+
+---
+
+## バッチ処理パイプライン
+
+エージェントが検索に使う知識ベースを構築するためのスクリプト群です。
+
+### Step 1: ContentUnderstanding（キーフレーム画像の解析）
+
+Azure Video Indexer から取得したキーフレーム画像を GPT-4.1 Vision で解析します。
+
+```
+VideoSceneSearch/Batch/ContentUnderstanding/
+├── run-batch.ps1          # 実行スクリプト
+├── FeldSchema.json        # 抽出フィールド定義
+├── FeldSchema_sample.json # サンプルフィールド定義
+├── input/
+│   └── _KeyFrameThumbnail/  # Video Indexer から取得したキーフレーム画像（.jpg）
+└── output/                  # 解析結果 JSON（gitignore）
+```
+
+```powershell
+cd VideoSceneSearch/Batch/ContentUnderstanding
+
+# run-batch.ps1 内の設定値を編集してから実行
+# $ResourceEndpoint: Azure OpenAI エンドポイント
+# $DeploymentName: GPT-4.1 デプロイ名
+# $InputDir: キーフレーム画像フォルダ
+
+.\run-batch.ps1
+```
+
+### Step 2: SceneAggregate（ナレッジ構築・ベクターストア登録）
+
+ContentUnderstanding の出力と Video Indexer の Insights を統合し、ベクターストアにアップロードします。
+
+```
+VideoSceneSearch/Batch/SceneAggregate/
+├── scene_aggregate.py          # シーン情報の統合
+├── build_knowledge.py          # ナレッジドキュメント生成
+├── build_keyframe_knowledge.py # キーフレーム単位のナレッジ生成
+├── upload_to_vectorstore.py    # ベクターストアへのアップロード
+├── face_name_aliases.json.sample  # 顔認識エイリアス設定サンプル
+├── input/
+│   └── _Insights/              # Video Indexer の Insights JSON（gitignore）
+└── output/                     # 生成ドキュメント（gitignore）
+```
+
+```bash
+cd VideoSceneSearch/Batch/SceneAggregate
+python scene_aggregate.py
+python build_knowledge.py
+python upload_to_vectorstore.py
+```
+
+---
+
+## 動画マッピング設定
+
+`VideoSceneSearch/videomapping.json` でエージェントが返す `videoId` と実際の動画ファイルをマッピングします。
+
+```json
+{
+  "VideoMapping": {
+    "video-id-1": {
+      "title": "動画タイトル",
+      "file": "/videos/local-video.mp4",
+      "thumbnail": "/videos/thumbnails/thumb.jpg"
+    },
+    "video-id-2": {
+      "title": "外部ストレージの動画",
+      "file": "https://your-storage.blob.core.windows.net/videos/video.mp4",
+      "thumbnail": ""
+    }
+  }
+}
+```
+
+ローカル動画は `VideoSceneSearch/wwwroot/videos/` に配置します（`.mp4` は `.gitignore` 対象）。
+
+---
+
+## プロジェクト構成
+
+```
+sample-video-scene-search/
+├── VideoSceneSearch/                    # ASP.NET Core 8 Web アプリ
+│   ├── Program.cs                       # アプリエントリポイント・DI 設定
+│   ├── Pages/Index.cshtml               # 検索 UI（Razor Pages）
+│   ├── Services/FoundryAgentClient.cs   # Foundry Hosted Agent クライアント
+│   ├── Models/                          # データモデル
+│   ├── videomapping.json                # 動画マッピング設定
+│   ├── appsettings.json                 # 基本設定（プレースホルダー）
+│   ├── appsettings.Development.json     # ローカル開発設定（gitignore）
+│   └── Batch/
+│       ├── ContentUnderstanding/        # GPT-4.1 Vision キーフレーム解析
+│       └── SceneAggregate/              # ナレッジ統合・ベクターストア登録
+└── video-scene-search/                  # Foundry Hosted Agent（azd プロジェクト）
+    ├── azure.yaml                       # azd サービス定義
+    ├── infra/                           # Bicep インフラ定義
+    └── src/video-scene-search/
+        ├── Program.cs                   # エージェント指示・ロジック
+        └── agent.yaml                   # エージェント設定
+
+```
+
+---
+
+## 設定リファレンス
+
+| 設定キー | 説明 | 例 |
+|---------|------|-----|
+| `AzureAIFoundry:Endpoint` | Foundry Hosted Agent のエンドポイント URL（`?api-version=v1` 必須） | `https://{resource}.services.ai.azure.com/api/projects/{project}/agents/{agent}/endpoint/protocols/openai?api-version=v1` |
+| `AzureAIFoundry:ModelDeploymentName` | モデルデプロイ名 | `gpt-4.1` |
+
+設定の優先順位（後が優先）：`appsettings.json` → `appsettings.Development.json` → 環境変数 → `launchSettings.json`
 
 ---
 
