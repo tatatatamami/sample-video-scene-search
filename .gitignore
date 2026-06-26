@@ -453,3 +453,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Local probe project
+_probe/

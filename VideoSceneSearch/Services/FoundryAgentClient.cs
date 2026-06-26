@@ -125,8 +125,8 @@ public class FoundryAgentClient : IFoundryAgentClient
 
         if (response.Status == ResponseStatus.Incomplete)
         {
-            _logger.LogWarning("Agent response was incomplete: {Reason}",
-                response.IncompleteStatusDetails?.Reason);
+            throw new InvalidOperationException(
+                $"Agent response was incomplete: {response.IncompleteStatusDetails?.Reason}");
         }
 
         var textBuilder = new StringBuilder();
@@ -146,6 +146,11 @@ public class FoundryAgentClient : IFoundryAgentClient
 
         var result = textBuilder.ToString();
         _logger.LogInformation("Extracted text from response ({Length} chars)", result.Length);
+
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            throw new InvalidOperationException("Agent returned no output text.");
+        }
 
         return result;
     }
@@ -171,6 +176,9 @@ internal sealed class FoundryApiVersionPolicy : PipelinePolicy
 
     private static void AppendApiVersion(PipelineRequest request)
     {
+        // Hosted Agent refreshed preview で必須のヘッダー
+        request.Headers.Set("Foundry-Features", "HostedAgents=V1Preview");
+
         var uriStr = request.Uri?.AbsoluteUri;
         if (uriStr is null) return;
 
@@ -182,3 +190,4 @@ internal sealed class FoundryApiVersionPolicy : PipelinePolicy
         }
     }
 }
+
