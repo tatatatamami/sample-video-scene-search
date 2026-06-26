@@ -45,6 +45,11 @@ app.MapPost("/api/scene-search", async (
         return Results.BadRequest(new { error = "Query is required" });
     }
 
+    if (request.Query.Length > 500)
+    {
+        return Results.BadRequest(new { error = "Query is too long" });
+    }
+
     try
     {
         // Build available videos dictionary (videoId -> title)
@@ -103,7 +108,7 @@ app.MapPost("/api/scene-search", async (
             }
             if (string.IsNullOrEmpty(scene.Title))
             {
-                scene.Title = "����";
+                scene.Title = "不明";
             }
         }
 
@@ -155,10 +160,10 @@ app.MapPost("/api/scene-search", async (
     }
     catch (Exception ex)
     {
+        // 例外の詳細はサーバーログにのみ記録し、クライアントには汎用メッセージを返す
         logger.LogError(ex, "Error calling Azure AI Foundry Agent");
         return Results.Problem(
-            title: "Error calling Azure AI Foundry Agent",
-            detail: ex.Message,
+            title: "エージェントへの接続に失敗しました。しばらくしてから再試行してください。",
             statusCode: 500);
     }
 });

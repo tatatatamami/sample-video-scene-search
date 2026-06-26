@@ -129,7 +129,11 @@
                 displayResults(data);
             } catch (error) {
                 console.error('Error:', error);
-                resultsContainer.innerHTML = `<p class="error">エラーが発生しました: ${error.message}</p>`;
+                const errMsg = document.createElement('p');
+                errMsg.className = 'error';
+                errMsg.textContent = `エラーが発生しました: ${error.message}`;
+                resultsContainer.innerHTML = '';
+                resultsContainer.appendChild(errMsg);
             } finally {
                 searchButton.disabled = false;
                 loadingIndicator.style.display = 'none';
@@ -165,7 +169,11 @@
                 });
             } catch (error) {
                 console.error('Error displaying results:', error);
-                resultsContainer.innerHTML = `<p class="error">結果の表示中にエラーが発生しました: ${error.message}</p>`;
+                const errMsg = document.createElement('p');
+                errMsg.className = 'error';
+                errMsg.textContent = `結果の表示中にエラーが発生しました: ${error.message}`;
+                resultsContainer.innerHTML = '';
+                resultsContainer.appendChild(errMsg);
             }
         }
 

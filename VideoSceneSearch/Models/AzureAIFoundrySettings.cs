@@ -3,14 +3,14 @@ namespace VideoSceneSearch.Models;
 public class AzureAIFoundrySettings
 {
     /// <summary>
-    /// Azure AI Foundry のホステッドエージェントエンドポイント (ベース URL)。
-    /// "/responses" の前までを指定します。
-    /// 例: https://{resource}.services.ai.azure.com/api/projects/{project}/applications/{agent-id}/protocols/openai
+    /// Azure AI Foundry のプロジェクトエンドポイント。
+    /// 形式: https://{resource}.services.ai.azure.com/api/projects/{project}
     /// </summary>
     public string Endpoint { get; set; } = string.Empty;
 
     /// <summary>
-    /// エージェントに設定されているモデルのデプロイメント名 (例: gpt-4.1)。
+    /// 呼び出すエージェントの名前 (例: video-scene-search)。
+    /// Foundry ポータルまたは agent.yaml の name フィールドに対応します。
     /// </summary>
-    public string ModelDeploymentName { get; set; } = string.Empty;
+    public string AgentName { get; set; } = string.Empty;
 }

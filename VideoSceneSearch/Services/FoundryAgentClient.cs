@@ -1,9 +1,9 @@
 ﻿#pragma warning disable OPENAI001
 
-using Azure.Identity;
+using Azure.AI.Extensions.OpenAI;
+using Azure.AI.Projects;
 using Microsoft.Extensions.Options;
 using OpenAI.Responses;
-using System.ClientModel.Primitives;
 using System.Text;
 using VideoSceneSearch.Models;
 
@@ -15,35 +15,34 @@ public interface IFoundryAgentClient
 }
 
 /// <summary>
-/// Azure AI Foundry ホステッドエージェントを OpenAI Responses API で呼び出すクライアント。
-/// Microsoft Entra ID (DefaultAzureCredential) を使用してキーレス認証を行います。
+/// Azure AI Foundry エージェントを Responses API で呼び出すクライアント。
+/// AIProjectClient を介して ProjectResponsesClient を取得し、
+/// Microsoft Entra ID (DefaultAzureCredential) でキーレス認証を行います。
 /// </summary>
 public class FoundryAgentClient : IFoundryAgentClient
 {
-    private readonly ResponsesClient _responsesClient;
-    private readonly AzureAIFoundrySettings _settings;
+    private readonly ProjectResponsesClient _responsesClient;
+    private readonly string _agentName;
     private readonly ILogger<FoundryAgentClient> _logger;
 
     public FoundryAgentClient(
         IOptions<AzureAIFoundrySettings> settings,
         ILogger<FoundryAgentClient> logger)
     {
-        _settings = settings.Value;
         _logger = logger;
+        var s = settings.Value;
+        _agentName = s.AgentName;
 
-        // Microsoft Entra ID を使用したキーレス認証。
-        // Azure AI Foundry のスコープは https://ai.azure.com/.default を使用します。
-        // 参考: https://learn.microsoft.com/azure/ai-foundry/
-        var tokenPolicy = new BearerTokenPolicy(
-            new DefaultAzureCredential(),
-            "https://ai.azure.com/.default");
+        // プロジェクトエンドポイントと DefaultAzureCredential で AIProjectClient を作成します。
+        // エンドポイント形式: https://{resource}.services.ai.azure.com/api/projects/{project}
+        var projectClient = new AIProjectClient(
+            endpoint: new Uri(s.Endpoint),
+            tokenProvider: new Azure.Identity.DefaultAzureCredential());
 
-        // エンドポイントは "/responses" を除いたベース URL を設定します。
-        // 例: https://{resource}.services.ai.azure.com/api/projects/{project}/agents/{agent-name}/endpoint/protocols/openai
-        // Azure AI Foundry のホステッドエージェント (Responses プロトコル) は api-version=v1 クエリパラメータが必須です。
-        var options = new ResponsesClientOptions { Endpoint = new Uri(_settings.Endpoint) };
-        options.AddPolicy(new FoundryApiVersionPolicy(), PipelinePosition.BeforeTransport);
-        _responsesClient = new ResponsesClient(tokenPolicy, options);
+        // エージェント名を指定して ProjectResponsesClient を取得します。
+        // エージェントの model・instructions・tools はサービス側の定義が使用されます。
+        _responsesClient = projectClient.ProjectOpenAIClient
+            .GetProjectResponsesClientForAgent(s.AgentName);
     }
 
     public async Task<string> SearchScenesAsync(
@@ -51,9 +50,9 @@ public class FoundryAgentClient : IFoundryAgentClient
         Dictionary<string, string> availableVideos,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Sending request to Foundry Hosted Agent");
+        _logger.LogInformation("Sending request to Foundry Agent (agent: {AgentName})", _agentName);
 
-        // Build message with available video context so the agent can reference videos by ID.
+        // 利用可能な動画一覧をコンテキストとして付与します。
         string message;
         if (availableVideos.Count > 0)
         {
@@ -65,16 +64,13 @@ public class FoundryAgentClient : IFoundryAgentClient
             message = query;
         }
 
-        var options = new CreateResponseOptions
-        {
-            Model = _settings.ModelDeploymentName,
-            StreamingEnabled = true
-        };
-        options.InputItems.Add(ResponseItem.CreateUserMessageItem(message));
-
         var textBuilder = new StringBuilder();
 
-        await foreach (var update in _responsesClient.CreateResponseStreamingAsync(options)
+        // Responses API でストリーミング応答を受信します。
+        // 各ターンは単発リクエストとして送信されます。
+        // 会話履歴を跨いだ継続が必要な場合は PreviousResponseId を使用してください。
+        await foreach (var update in _responsesClient
+            .CreateResponseStreamingAsync(message)
             .WithCancellation(cancellationToken))
         {
             if (update is StreamingResponseOutputTextDeltaUpdate textDelta)
@@ -84,40 +80,8 @@ public class FoundryAgentClient : IFoundryAgentClient
         }
 
         var result = textBuilder.ToString();
-        _logger.LogInformation("Received response from Foundry Hosted Agent ({Length} chars)", result.Length);
+        _logger.LogInformation("Received response from Foundry Agent ({Length} chars)", result.Length);
 
         return result;
-    }
-}
-
-/// <summary>
-/// Azure AI Foundry のホステッドエージェント (Responses プロトコル) が要求する
-/// api-version=v1 クエリパラメータをすべてのリクエストに付与するパイプラインポリシー。
-/// </summary>
-internal sealed class FoundryApiVersionPolicy : PipelinePolicy
-{
-    public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
-    {
-        AppendApiVersion(message.Request);
-        ProcessNext(message, pipeline, currentIndex);
-    }
-
-    public override async ValueTask ProcessAsync(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
-    {
-        AppendApiVersion(message.Request);
-        await ProcessNextAsync(message, pipeline, currentIndex);
-    }
-
-    private static void AppendApiVersion(PipelineRequest request)
-    {
-        var uriStr = request.Uri?.AbsoluteUri;
-        if (uriStr is null) return;
-
-        // api-version が未設定のリクエストのみ追加する
-        if (!uriStr.Contains("api-version=", StringComparison.OrdinalIgnoreCase))
-        {
-            var separator = uriStr.Contains('?') ? "&" : "?";
-            request.Uri = new Uri(uriStr + separator + "api-version=v1");
-        }
     }
 }
