@@ -69,6 +69,33 @@ def create_or_update_index(
             {"name": "timeMs",       "type": "Edm.Int32",  "key": False, "filterable": True, "sortable": True},
             {"name": "beginMs",      "type": "Edm.Int32",  "key": False, "filterable": True, "sortable": True},
             {"name": "endMs",        "type": "Edm.Int32",  "key": False, "filterable": True, "sortable": True},
+            # --- scene 固有フィールド ---
+            {"name": "representativeImagePath", "type": "Edm.String", "key": False, "retrievable": True},
+            {
+                "name": "scene_summary",
+                "type": "Edm.String",
+                "key": False,
+                "searchable": True,
+                "retrievable": True,
+                "analyzer": "ja.microsoft",
+            },
+            # --- 人物フィールド (構造化フィルター対応) ---
+            {
+                "name": "scenePeople",
+                "type": "Collection(Edm.String)",
+                "key": False,
+                "searchable": True,
+                "filterable": True,
+                "retrievable": True,
+            },
+            {
+                "name": "visiblePeople",
+                "type": "Collection(Edm.String)",
+                "key": False,
+                "searchable": True,
+                "filterable": True,
+                "retrievable": True,
+            },
             # --- 検索テキスト ---
             {
                 "name": "search_text",
@@ -175,9 +202,12 @@ def upload_documents(
     results = resp.json().get("value", [])
     failed = [r for r in results if not r.get("status", False)]
     if failed:
-        print(f"  ⚠ {len(failed)} 件でエラー:")
+        print(f"  ⚠ {len(failed)} 件で登録エラー:")
         for f in failed[:5]:
             print(f"    - {f.get('key', '?')}: {f.get('errorMessage', '?')}")
+        raise RuntimeError(
+            f"{len(failed)} 件のドキュメントが登録に失敗しました。スキーマ不一致またはAI Searchのエラーを確認してください。"
+        )
 
 
 def list_index_stats(
@@ -287,7 +317,11 @@ def main() -> None:
     total = 0
     for i in range(0, len(upload_docs), args.upload_batch):
         batch = upload_docs[i: i + args.upload_batch]
-        upload_documents(args.search_endpoint, search_headers, args.index_name, batch)
+        try:
+            upload_documents(args.search_endpoint, search_headers, args.index_name, batch)
+        except RuntimeError as exc:
+            print(f"\nERROR: {exc}")
+            sys.exit(1)
         total += len(batch)
         print(f"  {total}/{len(upload_docs)} 件アップロード済み")
 

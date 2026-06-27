@@ -55,6 +55,8 @@ def project_scene_document(scene: Dict[str, Any]) -> Dict[str, Any]:
         "endMs":         scene["endMs"],
         "representativeImagePath": scene.get("representativeImagePath"),
         "scene_summary": scene.get("scene_summary", ""),
+        # 人物リスト（Azure AI Search の Collection(Edm.String) フィルター対応）
+        "scenePeople":   list(scene.get("people") or []),
         "search_text":   build_scene_search_text(scene),
     }
 
@@ -111,6 +113,11 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
             "beginMs":      begin_ms,
             "endMs":        end_ms,
             "imagePath":    keyframe.get("imagePath", ""),
+            # 人物リスト（現時点は親シーンの people を使用）
+            # scenePeople: 親シーンで検出された人物
+            # visiblePeople: フレームに山っている人物（現時点は scenePeople と同値を使用）
+            "scenePeople":  list(scene.get("people") or []),
+            "visiblePeople": list(scene.get("people") or []),
             "search_text":  build_keyframe_search_text(scene, keyframe),
         })
 

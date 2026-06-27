@@ -77,6 +77,9 @@ public class AzureSearchService : IAzureSearchService
         options.Select.Add("beginMs");
         options.Select.Add("endMs");
         options.Select.Add("timeMs");
+        options.Select.Add("scenePeople");
+        options.Select.Add("visiblePeople");
+        options.Select.Add("scene_summary");
         options.Select.Add("search_text");
 
         options.VectorSearch = new VectorSearchOptions();
@@ -99,17 +102,28 @@ public class AzureSearchService : IAzureSearchService
         await foreach (var result in searchResponse.Value.GetResultsAsync())
         {
             var doc = result.Document;
-            var docId    = GetString(doc, "id");
-            var videoId  = GetString(doc, "videoId");
-            var beginMs  = GetInt(doc, "beginMs");
-            var endMs    = GetInt(doc, "endMs");
-            var text     = GetString(doc, "search_text");
-            var score    = result.Score ?? 0.0;
+            var docId      = GetString(doc, "id");
+            var docType    = GetString(doc, "documentType");
+            var videoId    = GetString(doc, "videoId");
+            var beginMs    = GetInt(doc, "beginMs");
+            var endMs      = GetInt(doc, "endMs");
+            var text       = GetString(doc, "search_text");
+            var sceneSummary = GetString(doc, "scene_summary");
+            var scenePeople  = GetStringList(doc, "scenePeople");
+            var visiblePeople = GetStringList(doc, "visiblePeople");
+            var score      = result.Score ?? 0.0;
 
-            sb.AppendLine($"--- 検索結果 {++count} (スコア: {score:F3}) ---");
-            sb.AppendLine($"ID: {docId}  videoId: {videoId}  開始: {beginMs}ms  終了: {endMs}ms");
-            // テキストが長い場合は先頭部分のみ渡す
-            sb.AppendLine(text.Length > 1000 ? text[..1000] + "…" : text);
+            sb.AppendLine($"--- 検索結果 {++count} (score: {score:F3}) ---");
+            // 人物・ ID ・時刻は truncation の外側に必ず含める
+            sb.AppendLine($"id: {docId}  type: {docType}  videoId: {videoId}  beginMs: {beginMs}  endMs: {endMs}");
+            if (scenePeople.Count > 0)
+                sb.AppendLine($"シーン登場人物: {string.Join(", ", scenePeople)}");
+            if (visiblePeople.Count > 0 && docType == "keyframe")
+                sb.AppendLine($"フレーム内人物: {string.Join(", ", visiblePeople)}");
+            if (!string.IsNullOrEmpty(sceneSummary))
+                sb.AppendLine($"シーン要約: {sceneSummary}");
+            // 内容テキスト（長い場合は先頭 1200 文字のみ）
+            sb.AppendLine(text.Length > 1200 ? text[..1200] + "…" : text);
             sb.AppendLine();
         }
 
@@ -134,6 +148,14 @@ public class AzureSearchService : IAzureSearchService
         if (doc.TryGetValue(key, out var v) && v is not null)
             return Convert.ToInt32(v);
         return 0;
+    }
+
+    private static List<string> GetStringList(SearchDocument doc, string key)
+    {
+        if (!doc.TryGetValue(key, out var v) || v is null) return [];
+        if (v is IEnumerable<object> items)
+            return items.Select(i => i?.ToString() ?? "").Where(s => s != "").ToList();
+        return [];
     }
 
     /// <summary>OData フィルタ文字列内のシングルクォートをエスケープする。</summary>
