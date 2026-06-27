@@ -3,10 +3,11 @@
     SceneAggregate パイプラインを一括実行するラッパースクリプト。
 
 .DESCRIPTION
-    extract_scene_facts.py → build_scene_knowledge.py → [build_keyframe_knowledge.py] → upload_to_vectorstore.py
+    extract_scene_facts.py → build_knowledge.py → upload_to_vectorstore.py
     の順に実行します。
 
-    --unit keyframe (デフォルト): キーフレーム単位でベクターストアに登録
+    build_knowledge.py は Canonical Scene Knowledge をメモリ上で 1 回生成し、
+    --unit keyframe （デフォルト）: キーフレーム单位でベクターストアに登録
     --unit scene               : シーン単位でベクターストアに登録
 
 .PARAMETER Unit
@@ -101,9 +102,9 @@ try {
     # 出力ディレクトリを作成
     New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-    $SceneFactsJson    = Join-Path $OutputDir "scene_facts.json"
-    $KnowledgeDocsJson = Join-Path $OutputDir "knowledge_docs.json"
-    $KeyframeDocsJson  = Join-Path $OutputDir "keyframe_docs.json"
+    $SceneFactsJson   = Join-Path $OutputDir "scene_facts.json"
+    $SceneDocsJson    = Join-Path $OutputDir "scene_docs.json"
+    $KeyframeDocsJson = Join-Path $OutputDir "keyframe_docs.json"
 
     Write-Host ""
     Write-Host "=== SceneAggregate パイプライン ===" -ForegroundColor Cyan
@@ -119,7 +120,7 @@ try {
     # -----------------------------------------------------------------------
     # Step 1: extract_scene_facts.py
     # -----------------------------------------------------------------------
-    Write-Host "[1/$(if ($Unit -eq 'keyframe') { 4 } else { 3 })] extract_scene_facts.py を実行中..." -ForegroundColor Yellow
+    Write-Host "[1/3] extract_scene_facts.py を実行中..." -ForegroundColor Yellow
     python extract_scene_facts.py `
         --input  $InsightsFile `
         --output $SceneFactsJson
@@ -127,37 +128,27 @@ try {
     Write-Host "  → $SceneFactsJson" -ForegroundColor Green
 
     # -----------------------------------------------------------------------
-    # Step 2: build_scene_knowledge.py
+    # Step 2: build_knowledge.py（シーン・キーフレームを 1 回のパスで生成）
     # -----------------------------------------------------------------------
-    Write-Host "[2/$(if ($Unit -eq 'keyframe') { 4 } else { 3 })] build_scene_knowledge.py を実行中..." -ForegroundColor Yellow
-    python build_scene_knowledge.py `
-        --scene-facts $SceneFactsJson `
-        --cu-output   $CuOutputDir `
-        --output      $KnowledgeDocsJson
-    if ($LASTEXITCODE -ne 0) { throw "build_scene_knowledge.py が失敗しました (exit $LASTEXITCODE)" }
-    Write-Host "  → $KnowledgeDocsJson" -ForegroundColor Green
-
-    # -----------------------------------------------------------------------
-    # Step 3 (keyframe のみ): build_keyframe_knowledge.py
-    # -----------------------------------------------------------------------
-    if ($Unit -eq "keyframe") {
-        Write-Host "[3/4] build_keyframe_knowledge.py を実行中..." -ForegroundColor Yellow
-        python build_keyframe_knowledge.py `
-            --input  $KnowledgeDocsJson `
-            --output $KeyframeDocsJson
-        if ($LASTEXITCODE -ne 0) { throw "build_keyframe_knowledge.py が失敗しました (exit $LASTEXITCODE)" }
-        Write-Host "  → $KeyframeDocsJson" -ForegroundColor Green
-    }
+    Write-Host "[2/3] build_knowledge.py を実行中..." -ForegroundColor Yellow
+    python build_knowledge.py `
+        --scene-facts     $SceneFactsJson `
+        --cu-output       $CuOutputDir `
+        --scene-output    $SceneDocsJson `
+        --keyframe-output $KeyframeDocsJson
+    if ($LASTEXITCODE -ne 0) { throw "build_knowledge.py が失敗しました (exit $LASTEXITCODE)" }
+    Write-Host "  → $SceneDocsJson" -ForegroundColor Green
+    Write-Host "  → $KeyframeDocsJson" -ForegroundColor Green
 
     # -----------------------------------------------------------------------
     # 最終アップロード対象ファイルを決定
     # -----------------------------------------------------------------------
-    $UploadFile = if ($Unit -eq "keyframe") { $KeyframeDocsJson } else { $KnowledgeDocsJson }
+    $UploadFile = if ($Unit -eq "keyframe") { $KeyframeDocsJson } else { $SceneDocsJson }
 
     # -----------------------------------------------------------------------
-    # Step 3 or 4: upload_to_vectorstore.py
+    # Step 3: upload_to_vectorstore.py
     # -----------------------------------------------------------------------
-    $UploadStep = if ($Unit -eq "keyframe") { 4 } else { 3 }
+    $UploadStep = 3
     if ($SkipUpload) {
         Write-Host "[$UploadStep] upload_to_vectorstore.py をスキップしました (--SkipUpload)" -ForegroundColor DarkGray
         Write-Host "  アップロード対象ファイル: $UploadFile"

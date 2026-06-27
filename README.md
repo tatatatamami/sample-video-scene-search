@@ -239,14 +239,11 @@ cd VideoSceneSearch/Batch/ContentUnderstanding
 ```bash
 cd VideoSceneSearch/Batch/SceneAggregate
 
-python build_scene_knowledge.py \
+python build_knowledge.py \
     --scene-facts output/your-video/scene_facts.json \
     --cu-output ../ContentUnderstanding/output/YourVideo \
-    --output output/your-video/knowledge_docs.json
-
-python build_keyframe_knowledge.py \
-    --input output/your-video/knowledge_docs.json \
-    --output output/your-video/keyframe_docs.json
+    --scene-output output/your-video/scene_docs.json \
+    --keyframe-output output/your-video/keyframe_docs.json
 ```
 
 ### Step 3: ベクターストアへのアップロード
@@ -364,8 +361,7 @@ See [CONFIGURATION.md](VideoSceneSearch/CONFIGURATION.md) for full options.
 ### 2. Build knowledge documents
 
 ```bash
-python build_scene_knowledge.py --scene-facts ... --cu-output ... --output ...
-python build_keyframe_knowledge.py --input ... --output ...
+python build_knowledge.py --scene-facts ... --cu-output ... --scene-output ... --keyframe-output ...
 ```
 
 ### 3. Upload to vector store
