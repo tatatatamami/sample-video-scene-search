@@ -113,11 +113,14 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
             "beginMs":      begin_ms,
             "endMs":        end_ms,
             "imagePath":    keyframe.get("imagePath", ""),
-            # 人物リスト（現時点は親シーンの people を使用）
-            # scenePeople: 親シーンで検出された人物
-            # visiblePeople: フレームに山っている人物（現時点は scenePeople と同値を使用）
-            "scenePeople":  list(scene.get("people") or []),
-            "visiblePeople": list(scene.get("people") or []),
+            # 人物リスト
+            # scenePeople: 親シーンで検出された人物（シーン単位の people リストから）
+            # visiblePeople: フレームに実際に映っている人物
+            #   ※ Video Indexer の出現区間とキーフレーム時刻の重なりで判定すべきだが、
+            #      現時点は extract_scene_facts.py が時間レンジを保持しないため実装不可。
+            #      誤った意味でシーン人物をコピーするより空配列が安全。
+            "scenePeople":   list(scene.get("people") or []),
+            "visiblePeople": [],
             "search_text":  build_keyframe_search_text(scene, keyframe),
         })
 
