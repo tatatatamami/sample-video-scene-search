@@ -11,10 +11,24 @@ Canonical Scene Knowledge（knowledge_normalizer.py の出力）を受け取り�
   - キーフレームの beginMs / endMs 算出（前後キーフレームとの中間点）
   - search_text の組み立て呼び出し（knowledge_text へ委譲）
 
-Azure AI Search の Index Projections における Parent-Child パターンに対応:
-  - シーン: documentType = "scene"
-  - キーフレーム: documentType = "keyframe"
-  - documentType を filterable にすることで検索粒度を切り替え可能
+設計の位置づけ:
+  Azure AI Search の Parent-Child パターン（Index Projections）を参考に、
+  アプリケーション側でシーン／キーフレーム単位の検索ドキュメントを生成する。
+
+  現在のアップロード先は Foundry File Search（Vector Store）であり、
+  Azure AI Search の Index Projections 機能そのものを使用しているわけではない。
+  そのため以下の点に留意が必要:
+
+  - documentType フィールドは File Search ではフィルター不可（単なる文字列）。
+    "documentType eq 'keyframe'" 形式のフィルターは、将来 Azure AI Search の
+    カスタムインデックスへ移行した場合にのみ成立する。
+
+  - JSON 配列の 1 要素 = 1 検索チャンクになる保証はない。
+    File Search はアップロードファイルを自動チャンク化（既定: 800 トークン、
+    400 オーバーラップ）するため、実際の検索粒度は File Search 側が決定する。
+
+  厳密な 1 Scene / 1 Keyframe 単位での検索・フィルターが必要な場合は、
+  Azure AI Search のカスタムインデックスへの移行を検討すること。
 """
 
 from typing import Any, Dict, List
