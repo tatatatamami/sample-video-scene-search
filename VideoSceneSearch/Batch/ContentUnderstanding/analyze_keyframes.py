@@ -11,7 +11,7 @@ Prerequisites:
   pip install azure-identity requests
 
 Usage:
-  python run-cu-batch.py \\
+  python analyze_keyframes.py \\
     --input-dir  "input/_KeyFrameThumbnail" \\
     --output-dir "output/MyVideo" \\
     [--schema-file  "FeldSchema_sample.json"] \\

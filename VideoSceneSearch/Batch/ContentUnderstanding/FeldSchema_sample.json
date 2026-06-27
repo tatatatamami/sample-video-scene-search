@@ -43,6 +43,6 @@
 	},
 	"_instructions": {
 		"comment": "This is a sample schema. Copy this file and customize the field descriptions for your video content.",
-		"usage": "python run-cu-batch.py --input-dir 'input/_KeyFrameThumbnail' --output-dir 'output/MyVideo' --schema-file 'FeldSchema_sample.json' --ensure-analyzer"
+		"usage": "python analyze_keyframes.py --input-dir 'input/_KeyFrameThumbnail' --output-dir 'output/MyVideo' --schema-file 'FeldSchema_sample.json' --ensure-analyzer"
 	}
 }
