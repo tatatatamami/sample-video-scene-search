@@ -178,7 +178,12 @@ def _enrich_keyframes(
     keyframes: List[Dict[str, Any]],
     cu_index: Dict[str, Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """キーフレームに ContentUnderstanding 解析結果を統合する。"""
+    """キーフレームに ContentUnderstanding 解析結果を統合する。
+
+    アプリケーションが明示的に使用する安定フィールド（subject/shot_type等）はトップレベルに保持する。
+    Analyzer固有のカスタムフィールド（biome/game_mode/scene_type 等）は
+    analysis_fields に全て保持し失わないようにする。
+    """
     enriched: List[Dict[str, Any]] = []
     for kf in keyframes:
         thumbnail_id = kf.get("thumbnailId", "")
@@ -188,12 +193,14 @@ def _enrich_keyframes(
             "thumbnailId":       thumbnail_id,
             "timeMs":            kf.get("timeMs", 0),
             "imagePath":         kf.get("imagePath", ""),
+            # アプリケーションが明示的に使用する安定フィールド
             "image_description": analysis.get("description", ""),
             "subject":           analysis.get("subject", ""),
             "shot_type":         analysis.get("shot_type", ""),
             "emotion":           analysis.get("emotion", ""),
-            "scene_type":        analysis.get("scene_type", ""),
             "objects":           analysis.get("objects") or [],
+            # Analyzer固有フィールドを全て保持（scene_type / biome / game_mode 等）
+            "analysis_fields":   dict(analysis),
         })
     return enriched
 
@@ -209,11 +216,6 @@ def build_canonical_scenes(
     """
     scene_facts.json と ContentUnderstanding 出力から
     検索単位に依存しない Canonical Scene Knowledge のリストを生成する。
-
-    - OCR フィルタリングはここで 1 回だけ行う
-    - 人物名正規化はここで 1 回だけ行う
-    - CU 結果の読み込みはここで 1 回だけ行う
-    - scene_summary はここで生成する（knowledge_text からインポート）
     """
     from knowledge_text import build_scene_summary  # 循環インポート回避のため関数内でインポート
 

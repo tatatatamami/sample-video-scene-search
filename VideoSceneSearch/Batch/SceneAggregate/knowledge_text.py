@@ -18,7 +18,14 @@ from typing import Any, Dict, List, Optional
 
 # CU フィールドで「意味なし」と見なす値
 _SENTINEL_VALUES = frozenset({"UNKNOWN", "NO_CLEAR_SUBJECT", "NEUTRAL", ""})
-
+# Analyzer固有フィールドの検索テキスト出力設定
+# field_name: display_label のマッピング。
+# 追加・削除することで、動画ごとの検索対象フィールドを調整できる。
+SEARCHABLE_ANALYSIS_FIELDS: Dict[str, str] = {
+    "scene_type": "シーンタイプ",
+    "biome":      "バイオーム",
+    "game_mode":  "ゲームモード",
+}
 
 # ---------------------------------------------------------------------------
 # 共通ユーティリティ
@@ -128,6 +135,13 @@ def build_keyframe_visual_parts(keyframe: Dict[str, Any]) -> List[str]:
     objects = keyframe.get("objects") or []
     if objects:
         metadata.append(f"物体: {', '.join(objects)}")
+
+    # Analyzer固有フィールド（SEARCHABLE_ANALYSIS_FIELDS に列挙されたフィールドのみ）
+    analysis_fields = keyframe.get("analysis_fields") or {}
+    for field_name, display_name in SEARCHABLE_ANALYSIS_FIELDS.items():
+        value = analysis_fields.get(field_name)
+        if isinstance(value, str) and value not in _SENTINEL_VALUES:
+            metadata.append(f"{display_name}: {value}")
 
     if metadata:
         parts.append("〖画像メタ〗" + " / ".join(metadata))
