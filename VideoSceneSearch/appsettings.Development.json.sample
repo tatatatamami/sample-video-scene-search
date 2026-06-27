@@ -8,5 +8,12 @@
   "AzureAIFoundry": {
     "Endpoint": "https://YOUR-RESOURCE-NAME.services.ai.azure.com/api/projects/YOUR-PROJECT/agents/YOUR-AGENT-NAME/endpoint/protocols/openai",
     "ModelDeploymentName": "gpt-4.1"
+  },
+  "AzureAISearch": {
+    "Endpoint": "https://YOUR-SEARCH-NAME.search.windows.net",
+    "IndexName": "video-scenes-keyframe",
+    "EmbeddingEndpoint": "https://YOUR-RESOURCE-NAME.services.ai.azure.com",
+    "EmbeddingDeployment": "text-embedding-3-small",
+    "TopK": 10
   }
 }

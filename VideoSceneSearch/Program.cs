@@ -12,10 +12,17 @@ builder.Services.AddRazorPages();
 builder.Services.Configure<AzureAIFoundrySettings>(
     builder.Configuration.GetSection("AzureAIFoundry"));
 
+// Configure Azure AI Search settings
+builder.Services.Configure<AzureAISearchSettings>(
+    builder.Configuration.GetSection("AzureAISearch"));
+
 // Configure Video Mapping settings
 builder.Configuration.AddJsonFile("videomapping.json", optional: true, reloadOnChange: true);
 builder.Services.Configure<VideoMappingSettings>(
     builder.Configuration);
+
+// AzureSearchService を Singleton として登録します。
+builder.Services.AddSingleton<IAzureSearchService, AzureSearchService>();
 
 // FoundryAgentClient を Singleton として登録します。
 // 内部で ResponsesClient を保持し、DefaultAzureCredential によるトークンキャッシュを活用します。

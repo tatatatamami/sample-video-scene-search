@@ -22,6 +22,7 @@ public class FoundryAgentClient : IFoundryAgentClient
 {
     private readonly ResponsesClient _responsesClient;
     private readonly AzureAIFoundrySettings _settings;
+    private readonly IAzureSearchService _searchService;
     private readonly ILogger<FoundryAgentClient> _logger;
 
     // Structured Output schema — agent must return JSON matching this shape.
@@ -59,9 +60,11 @@ public class FoundryAgentClient : IFoundryAgentClient
 
     public FoundryAgentClient(
         IOptions<AzureAIFoundrySettings> settings,
+        IAzureSearchService searchService,
         ILogger<FoundryAgentClient> logger)
     {
         _settings = settings.Value;
+        _searchService = searchService;
         _logger = logger;
 
         // Microsoft Entra ID を使用したキーレス認証。
@@ -85,16 +88,19 @@ public class FoundryAgentClient : IFoundryAgentClient
     {
         _logger.LogInformation("Sending request to Foundry Hosted Agent");
 
-        // Build message with available video context so the agent can reference videos by ID.
+        // Azure AI Search でシーンを事前検索し、取得したコンテキストをエージェントに渡す
+        var retrievedContext = await _searchService.SearchAsync(query, cancellationToken: cancellationToken);
+
+        // Build message with available video context and retrieved search results
         string message;
         if (availableVideos.Count > 0)
         {
             var videoList = string.Join("\n", availableVideos.Select(v => $"- {v.Key}: {v.Value}"));
-            message = $"Available videos:\n{videoList}\n\nUser query: {query}";
+            message = $"Available videos:\n{videoList}\n\n[Azure AI Search 取得済みコンテキスト]\n{retrievedContext}[/ Azure AI Search 取得済みコンテキスト]\n\nUser query: {query}";
         }
         else
         {
-            message = query;
+            message = $"[Azure AI Search 取得済みコンテキスト]\n{retrievedContext}[/ Azure AI Search 取得済みコンテキスト]\n\nUser query: {query}";
         }
 
         var options = new CreateResponseOptions

@@ -3,18 +3,17 @@
     SceneAggregate パイプラインを一括実行するラッパースクリプト。
 
 .DESCRIPTION
-    extract_scene_facts.py → build_knowledge.py → upload_to_vectorstore.py
+    extract_scene_facts.py → build_knowledge.py → upload_to_aisearch.py
     の順に実行します。
 
     build_knowledge.py は Canonical Scene Knowledge をメモリ上で 1 回生成し、
-    --unit keyframe （デフォルト）: キーフレーム单位でベクターストアに登録
-    --unit scene               : シーン単位でベクターストアに登録
+    --unit keyframe （デフォルト）: キーフレーム単位で AI Search インデックスに登録
+    --unit scene               : シーン単位で AI Search インデックスに登録
 
     【再実行時の運用ルール】
-    Vector Store への再アップロード前に旧ファイルは自動削除されません。
-    検索精度の比較評価では、実行ごとに新しい Vector Store を使うことを推奨します。
-    例: keyframe-v1, scene-v1, keyframe-v2, scene-v2 …
-    再実行前に旧ファイルをポータルから手動削除する場合も同様に機能します。
+    upload_to_aisearch.py は mergeOrUpload を使用するため、再実行時は同一 ID のドキュメントを
+    上書きします。インデックスを完全にリセットしたい場合は Azure ポータルからインデックスを
+    削除してから再実行してください。
 
 .PARAMETER Unit
     ドキュメント単位。"keyframe" または "scene"。デフォルト: keyframe
@@ -28,16 +27,23 @@
 .PARAMETER OutputDir
     中間ファイルおよび最終ナレッジ JSON の出力先フォルダ。
 
-.PARAMETER KeyframeVectorStoreId
-    キーフレーム単位アップロード先のベクターストア ID（例: vs_XXXX）。
-    --Unit keyframe（デフォルト）で使用される。シーン用とは別のストアを指定すること。
+.PARAMETER SearchEndpoint
+    Azure AI Search エンドポイント（例: https://<name>.search.windows.net）。
 
-.PARAMETER SceneVectorStoreId
-    シーン単位アップロード先のベクターストア ID（例: vs_YYYY）。
-    --Unit scene で使用される。キーフレーム用とは別のストアを指定すること。
+.PARAMETER KeyframeIndexName
+    キーフレーム単位アップロード先の AI Search インデックス名（例: video-scenes-keyframe）。
+    --Unit keyframe（デフォルト）で使用される。
 
-.PARAMETER BaseUrl
-    Azure AI Foundry のベース URL（例: https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1）。
+.PARAMETER SceneIndexName
+    シーン単位アップロード先の AI Search インデックス名（例: video-scenes-scene）。
+    --Unit scene で使用される。
+
+.PARAMETER EmbeddingEndpoint
+    Azure OpenAI エンドポイント（例: https://<resource>.services.ai.azure.com）。
+    Embedding モデルを呼び出すために使用します。
+
+.PARAMETER EmbeddingDeployment
+    Embedding モデルのデプロイメント名（デフォルト: text-embedding-3-small）。
 
 .PARAMETER SkipUpload
     このスイッチを指定すると upload_to_vectorstore.py をスキップします（ドライラン用）。
@@ -45,20 +51,24 @@
 .EXAMPLE
     # キーフレーム単位（デフォルト）
     .\run_scene_aggregate.ps1 `
-        --InsightsFile          "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir           "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir             "output\マイクラ" `
-        --KeyframeVectorStoreId "vs_XXXX" `
-        --BaseUrl               "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
+        --InsightsFile        "input\_Insights\minecraft_insights.json" `
+        --CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
+        --OutputDir           "output\マイクラ" `
+        --SearchEndpoint      "https://<name>.search.windows.net" `
+        --KeyframeIndexName   "video-scenes-keyframe" `
+        --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
+        --EmbeddingDeployment "text-embedding-3-small"
 
-    # シーン単位（別 Vector Store を指定）
+    # シーン単位
     .\run_scene_aggregate.ps1 `
         --Unit scene `
-        --InsightsFile       "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir        "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir          "output\マイクラ" `
-        --SceneVectorStoreId "vs_YYYY" `
-        --BaseUrl            "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
+        --InsightsFile        "input\_Insights\minecraft_insights.json" `
+        --CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
+        --OutputDir           "output\マイクラ" `
+        --SearchEndpoint      "https://<name>.search.windows.net" `
+        --SceneIndexName      "video-scenes-scene" `
+        --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
+        --EmbeddingDeployment "text-embedding-3-small"
 
     # アップロードをスキップして中間ファイルだけ生成
     .\run_scene_aggregate.ps1 `
@@ -82,9 +92,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputDir,
 
-    [string]$KeyframeVectorStoreId,
-    [string]$SceneVectorStoreId,
-    [string]$BaseUrl,
+    [string]$SearchEndpoint,
+    [string]$KeyframeIndexName,
+    [string]$SceneIndexName,
+    [string]$EmbeddingEndpoint,
+    [string]$EmbeddingDeployment = "text-embedding-3-small",
 
     [switch]$SkipUpload
 )
@@ -93,22 +105,25 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ---------------------------------------------------------------------------
-# Unit に応じたアップロード先 Vector Store を決定
-# シーン用とキーフレーム用を別ストアにすることで、再実行時の古いファイル混入を防ぐ
+# Unit に応じたアップロード先インデックス名を決定
 # ---------------------------------------------------------------------------
-$TargetVectorStoreId = if ($Unit -eq "keyframe") { $KeyframeVectorStoreId } else { $SceneVectorStoreId }
+$TargetIndexName = if ($Unit -eq "keyframe") { $KeyframeIndexName } else { $SceneIndexName }
 
 # ---------------------------------------------------------------------------
 # 前提チェック
 # ---------------------------------------------------------------------------
 if (-not $SkipUpload) {
-    if (-not $TargetVectorStoreId) {
-        $requiredParam = if ($Unit -eq "keyframe") { "KeyframeVectorStoreId" } else { "SceneVectorStoreId" }
+    if (-not $TargetIndexName) {
+        $requiredParam = if ($Unit -eq "keyframe") { "KeyframeIndexName" } else { "SceneIndexName" }
         Write-Error "--$requiredParam は Unit=$Unit のとき --SkipUpload なしで必須です。"
         exit 1
     }
-    if (-not $BaseUrl) {
-        Write-Error "--BaseUrl は --SkipUpload なしで必須です。"
+    if (-not $SearchEndpoint) {
+        Write-Error "--SearchEndpoint は --SkipUpload なしで必須です。"
+        exit 1
+    }
+    if (-not $EmbeddingEndpoint) {
+        Write-Error "--EmbeddingEndpoint は --SkipUpload なしで必須です（--skip-vectorization を使う場合は upload_to_aisearch.py を直接実行してください）。"
         exit 1
     }
 }
@@ -132,7 +147,8 @@ try {
     Write-Host "  CU 出力フォルダ: $CuOutputDir"
     Write-Host "  出力フォルダ   : $OutputDir"
     if (-not $SkipUpload) {
-        Write-Host "  ベクターストア : $TargetVectorStoreId"
+        Write-Host "  Search エンドポイント: $SearchEndpoint"
+        Write-Host "  インデックス         : $TargetIndexName"
     }
     Write-Host ""
 
@@ -165,20 +181,22 @@ try {
     $UploadFile = if ($Unit -eq "keyframe") { $KeyframeDocsJson } else { $SceneDocsJson }
 
     # -----------------------------------------------------------------------
-    # Step 3: upload_to_vectorstore.py
+    # Step 3: upload_to_aisearch.py
     # -----------------------------------------------------------------------
     $UploadStep = 3
     if ($SkipUpload) {
-        Write-Host "[$UploadStep] upload_to_vectorstore.py をスキップしました (--SkipUpload)" -ForegroundColor DarkGray
+        Write-Host "[$UploadStep] upload_to_aisearch.py をスキップしました (--SkipUpload)" -ForegroundColor DarkGray
         Write-Host "  アップロード対象ファイル: $UploadFile"
     } else {
-        Write-Host "[$UploadStep] upload_to_vectorstore.py を実行中..." -ForegroundColor Yellow
-        python upload_to_vectorstore.py `
-            --file             $UploadFile `
-            --vector-store-id  $TargetVectorStoreId `
-            --base-url         $BaseUrl
-        if ($LASTEXITCODE -ne 0) { throw "upload_to_vectorstore.py が失敗しました (exit $LASTEXITCODE)" }
-        Write-Host "  → ベクターストア $TargetVectorStoreId にアップロード完了" -ForegroundColor Green
+        Write-Host "[$UploadStep] upload_to_aisearch.py を実行中..." -ForegroundColor Yellow
+        python upload_to_aisearch.py `
+            --file                 $UploadFile `
+            --search-endpoint      $SearchEndpoint `
+            --index-name           $TargetIndexName `
+            --embedding-endpoint   $EmbeddingEndpoint `
+            --embedding-deployment $EmbeddingDeployment
+        if ($LASTEXITCODE -ne 0) { throw "upload_to_aisearch.py が失敗しました (exit $LASTEXITCODE)" }
+        Write-Host "  → インデックス '$TargetIndexName' にアップロード完了" -ForegroundColor Green
     }
 
     Write-Host ""
