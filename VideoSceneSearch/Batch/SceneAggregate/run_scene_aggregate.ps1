@@ -10,6 +10,12 @@
     --unit keyframe （デフォルト）: キーフレーム单位でベクターストアに登録
     --unit scene               : シーン単位でベクターストアに登録
 
+    【再実行時の運用ルール】
+    Vector Store への再アップロード前に旧ファイルは自動削除されません。
+    検索精度の比較評価では、実行ごとに新しい Vector Store を使うことを推奨します。
+    例: keyframe-v1, scene-v1, keyframe-v2, scene-v2 …
+    再実行前に旧ファイルをポータルから手動削除する場合も同様に機能します。
+
 .PARAMETER Unit
     ドキュメント単位。"keyframe" または "scene"。デフォルト: keyframe
 

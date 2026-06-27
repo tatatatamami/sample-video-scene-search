@@ -123,8 +123,11 @@ def load_cu_index(cu_output_dir: str) -> Dict[str, Dict[str, Any]]:
     """
     index: Dict[str, Dict[str, Any]] = {}
     dirpath = Path(cu_output_dir)
-    if not dirpath.exists():
-        return index
+    if not dirpath.is_dir():
+        raise FileNotFoundError(
+            f"CU output directory not found: {dirpath}\n"
+            "Run analyze_keyframes.py first to generate Content Understanding results."
+        )
 
     for fpath in dirpath.glob("KeyFrameThumbnail_*.json"):
         stem = fpath.stem  # "KeyFrameThumbnail_<uuid>"

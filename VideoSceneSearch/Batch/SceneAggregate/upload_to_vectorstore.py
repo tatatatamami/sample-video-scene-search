@@ -79,7 +79,10 @@ def wait_for_processing(base_url: str, headers: dict, vector_store_id: str, file
                 sys.exit(1)
         print(".", end="", flush=True)
         time.sleep(3)
-    print(f"\nWARNING: タイムアウト ({timeout}秒). 処理は継続中の可能性があります。")
+    raise TimeoutError(
+        f"Vector Store ingestion did not complete within {timeout} seconds. "
+        "Check the portal or retry later."
+    )
 
 
 def list_vector_store_files(base_url: str, headers: dict, vector_store_id: str) -> None:
