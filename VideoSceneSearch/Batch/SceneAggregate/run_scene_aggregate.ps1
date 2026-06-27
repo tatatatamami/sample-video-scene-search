@@ -22,8 +22,13 @@
 .PARAMETER OutputDir
     中間ファイルおよび最終ナレッジ JSON の出力先フォルダ。
 
-.PARAMETER VectorStoreId
-    Azure AI Foundry のベクターストア ID（例: vs_XXXX）。
+.PARAMETER KeyframeVectorStoreId
+    キーフレーム単位アップロード先のベクターストア ID（例: vs_XXXX）。
+    --Unit keyframe（デフォルト）で使用される。シーン用とは別のストアを指定すること。
+
+.PARAMETER SceneVectorStoreId
+    シーン単位アップロード先のベクターストア ID（例: vs_YYYY）。
+    --Unit scene で使用される。キーフレーム用とは別のストアを指定すること。
 
 .PARAMETER BaseUrl
     Azure AI Foundry のベース URL（例: https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1）。
@@ -34,20 +39,20 @@
 .EXAMPLE
     # キーフレーム単位（デフォルト）
     .\run_scene_aggregate.ps1 `
-        --InsightsFile "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir  "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir    "output\マイクラ" `
-        --VectorStoreId "vs_XXXX" `
-        --BaseUrl "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
+        --InsightsFile          "input\_Insights\minecraft_insights.json" `
+        --CuOutputDir           "..\ContentUnderstanding\output\マイクラ" `
+        --OutputDir             "output\マイクラ" `
+        --KeyframeVectorStoreId "vs_XXXX" `
+        --BaseUrl               "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
 
-    # シーン単位
+    # シーン単位（別 Vector Store を指定）
     .\run_scene_aggregate.ps1 `
         --Unit scene `
-        --InsightsFile "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir  "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir    "output\マイクラ" `
-        --VectorStoreId "vs_XXXX" `
-        --BaseUrl "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
+        --InsightsFile       "input\_Insights\minecraft_insights.json" `
+        --CuOutputDir        "..\ContentUnderstanding\output\マイクラ" `
+        --OutputDir          "output\マイクラ" `
+        --SceneVectorStoreId "vs_YYYY" `
+        --BaseUrl            "https://<resource>.services.ai.azure.com/api/projects/<project>/openai/v1"
 
     # アップロードをスキップして中間ファイルだけ生成
     .\run_scene_aggregate.ps1 `
@@ -71,7 +76,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputDir,
 
-    [string]$VectorStoreId,
+    [string]$KeyframeVectorStoreId,
+    [string]$SceneVectorStoreId,
     [string]$BaseUrl,
 
     [switch]$SkipUpload
@@ -81,11 +87,18 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ---------------------------------------------------------------------------
+# Unit に応じたアップロード先 Vector Store を決定
+# シーン用とキーフレーム用を別ストアにすることで、再実行時の古いファイル混入を防ぐ
+# ---------------------------------------------------------------------------
+$TargetVectorStoreId = if ($Unit -eq "keyframe") { $KeyframeVectorStoreId } else { $SceneVectorStoreId }
+
+# ---------------------------------------------------------------------------
 # 前提チェック
 # ---------------------------------------------------------------------------
 if (-not $SkipUpload) {
-    if (-not $VectorStoreId) {
-        Write-Error "--VectorStoreId は --SkipUpload なしで必須です。"
+    if (-not $TargetVectorStoreId) {
+        $requiredParam = if ($Unit -eq "keyframe") { "KeyframeVectorStoreId" } else { "SceneVectorStoreId" }
+        Write-Error "--$requiredParam は Unit=$Unit のとき --SkipUpload なしで必須です。"
         exit 1
     }
     if (-not $BaseUrl) {
@@ -113,7 +126,7 @@ try {
     Write-Host "  CU 出力フォルダ: $CuOutputDir"
     Write-Host "  出力フォルダ   : $OutputDir"
     if (-not $SkipUpload) {
-        Write-Host "  ベクターストア : $VectorStoreId"
+        Write-Host "  ベクターストア : $TargetVectorStoreId"
     }
     Write-Host ""
 
@@ -156,10 +169,10 @@ try {
         Write-Host "[$UploadStep] upload_to_vectorstore.py を実行中..." -ForegroundColor Yellow
         python upload_to_vectorstore.py `
             --file             $UploadFile `
-            --vector-store-id  $VectorStoreId `
+            --vector-store-id  $TargetVectorStoreId `
             --base-url         $BaseUrl
         if ($LASTEXITCODE -ne 0) { throw "upload_to_vectorstore.py が失敗しました (exit $LASTEXITCODE)" }
-        Write-Host "  → ベクターストア $VectorStoreId にアップロード完了" -ForegroundColor Green
+        Write-Host "  → ベクターストア $TargetVectorStoreId にアップロード完了" -ForegroundColor Green
     }
 
     Write-Host ""
