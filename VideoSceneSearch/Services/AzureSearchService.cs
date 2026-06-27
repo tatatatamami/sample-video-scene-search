@@ -1,4 +1,4 @@
-using Azure.AI.OpenAI;
+﻿using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
@@ -18,6 +18,7 @@ public interface IAzureSearchService
     Task<string> SearchAsync(
         string query,
         string? videoIdFilter = null,
+        string? documentTypeFilter = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -55,10 +56,11 @@ public class AzureSearchService : IAzureSearchService
     public async Task<string> SearchAsync(
         string query,
         string? videoIdFilter = null,
+        string? documentTypeFilter = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Azure AI Search: query={Query}, filter={Filter}", query, videoIdFilter);
+            "Azure AI Search: query={Query}, videoFilter={VideoFilter}, typeFilter={TypeFilter}", query, videoIdFilter, documentTypeFilter);
 
         // クエリをベクトル化
         var embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
@@ -89,10 +91,14 @@ public class AzureSearchService : IAzureSearchService
             KNearestNeighborsCount = _settings.TopK,
         });
 
+        // videoId フィルターと documentType フィルターを AND で結合
+        var filterParts = new System.Collections.Generic.List<string>();
         if (!string.IsNullOrEmpty(videoIdFilter))
-        {
-            options.Filter = $"videoId eq '{EscapeODataString(videoIdFilter)}'";
-        }
+            filterParts.Add($"videoId eq '{EscapeODataString(videoIdFilter)}'");
+        if (!string.IsNullOrEmpty(documentTypeFilter))
+            filterParts.Add($"documentType eq '{EscapeODataString(documentTypeFilter)}'");
+        if (filterParts.Count > 0)
+            options.Filter = string.Join(" and ", filterParts);
 
         var searchResponse = await _searchClient.SearchAsync<SearchDocument>(
             query, options, cancellationToken);

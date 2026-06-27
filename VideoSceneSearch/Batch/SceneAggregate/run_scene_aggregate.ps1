@@ -70,6 +70,33 @@
         --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
         --EmbeddingDeployment "text-embedding-3-small"
 
+    # ★ 推奨: 統合インデックス（scene と keyframe を同一インデックスへ登録）
+    # KeyframeIndexName と SceneIndexName を同じ値にすることで統合インデックスになります。
+    # アプリ側は AzureAISearch:IndexName に同じ名前を指定してください。
+    # documentType フィールドで scene / keyframe を区別できます。
+
+    # -- Step 1: keyframe を登録 --
+    .\run_scene_aggregate.ps1 `
+        -Unit keyframe `
+        -InsightsFile        "input\_Insights\minecraft_insights.json" `
+        -CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
+        -OutputDir           "output\マイクラ" `
+        -SearchEndpoint      "https://<name>.search.windows.net" `
+        -KeyframeIndexName   "video-scenes" `
+        -EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
+        -EmbeddingDeployment "text-embedding-3-small"
+
+    # -- Step 2: scene を登録（同じインデックス名を指定）--
+    .\run_scene_aggregate.ps1 `
+        -Unit scene `
+        -InsightsFile        "input\_Insights\minecraft_insights.json" `
+        -CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
+        -OutputDir           "output\マイクラ" `
+        -SearchEndpoint      "https://<name>.search.windows.net" `
+        -SceneIndexName      "video-scenes" `
+        -EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
+        -EmbeddingDeployment "text-embedding-3-small"
+
     # アップロードをスキップして中間ファイルだけ生成
     .\run_scene_aggregate.ps1 `
         --InsightsFile "input\_Insights\minecraft_insights.json" `

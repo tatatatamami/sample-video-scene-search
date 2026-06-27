@@ -88,8 +88,18 @@ public class FoundryAgentClient : IFoundryAgentClient
     {
         _logger.LogInformation("Sending request to Foundry Hosted Agent");
 
+        // クエリの意図を分類し、documentType フィルターを決定する
+        // 人物・会話・シーン → scene / 画面・物体・瞬間 → keyframe / 不明 → null（両方）
+        var docTypeFilter = ClassifyQueryIntent(query);
+        _logger.LogInformation(
+            "Query intent classification: {DocType}", docTypeFilter ?? "(both)");
+
         // Azure AI Search でシーンを事前検索し、取得したコンテキストをエージェントに渡す
-        var retrievedContext = await _searchService.SearchAsync(query, cancellationToken: cancellationToken);
+        var retrievedContext = await _searchService.SearchAsync(
+            query,
+            videoIdFilter: null,
+            documentTypeFilter: docTypeFilter,
+            cancellationToken: cancellationToken);
 
         // Build message with available video context and retrieved search results
         string message;
@@ -159,6 +169,43 @@ public class FoundryAgentClient : IFoundryAgentClient
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// クエリのキーワードパターンから検索対象の documentType を判定する。
+    /// 統合インデックスにおける scene / keyframe の絞り込みに使用する。
+    /// </summary>
+    /// <returns>
+    /// "scene"    — 人物・会話・シーンレベルのクエリ
+    /// "keyframe" — 画面・物体・瞬間的ビジュアルのクエリ
+    /// null       — 判定不能（両方を検索）
+    /// </returns>
+    private static string? ClassifyQueryIntent(string query)
+    {
+        // シーンレベル: 人物・会話・物語等
+        string[] sceneKeywords =
+        [
+            "人物", "キャラクター", "登場", "会話", "話して", "セリフ",
+            "ナレーション", "解説", "説明", "説明して", "語って",
+            "誰が", "誰は", "誰を", "履歴", "シーン",
+        ];
+
+        // キーフレームレベル: 画面・物体・瞬間的ビジュアル
+        string[] keyframeKeywords =
+        [
+            "画面", "映像", "映って", "見える", "表示", "物体",
+            "アイテム", "UI", "インターフェース", "瞬間", "フレーム",
+            "スクリーンショット", "テロップ", "スコア",
+        ];
+
+        int sceneScore    = sceneKeywords.Count(k => query.Contains(k, StringComparison.OrdinalIgnoreCase));
+        int keyframeScore = keyframeKeywords.Count(k => query.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+        if (sceneScore > 0 && sceneScore >= keyframeScore)
+            return "scene";
+        if (keyframeScore > 0 && keyframeScore > sceneScore)
+            return "keyframe";
+        return null; // 両方を検索
     }
 }
 
