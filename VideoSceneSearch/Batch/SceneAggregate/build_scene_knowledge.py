@@ -5,7 +5,7 @@
 scene_facts.json + ContentUnderstanding output を統合して、
 検索エージェントのナレッジ用ドキュメントを生成する。
 
-- scene_facts.json   : scene_aggregate.py の出力 (transcript/OCR/labels/faces/keyframes)
+- scene_facts.json   : extract_scene_facts.py の出力 (transcript/OCR/labels/faces/keyframes)
 - cu_output_dir      : GPT-4.1 Vision によるキーフレーム画像解析 JSON が格納されたフォルダ
   ファイル名形式: KeyFrameThumbnail_{thumbnailId}.json
 
@@ -86,8 +86,8 @@ def load_cu_index(cu_output_dir: str) -> Dict[str, Dict[str, Any]]:
                 data = json.load(f)
             analysis = data.get("analysis") or {}
             index[thumbnail_id] = analysis
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError, ValueError) as ex:
+            print(f"Warning: Failed to load {fpath.name}: {ex}", file=sys.stderr)
 
     return index
 
@@ -169,7 +169,7 @@ def build_scene_summary(
         if desc:
             parts.append(f"映像: {desc}")
 
-    # 音声の先頭50文字
+    # 音声の先頭80文字
     transcript = (scene_doc.get("transcript_text") or "").strip()
     if transcript:
         short = transcript[:80].replace("\n", " ")

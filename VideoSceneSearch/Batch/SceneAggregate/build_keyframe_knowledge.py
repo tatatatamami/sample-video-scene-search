@@ -18,7 +18,9 @@ Usage:
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from build_scene_knowledge import filter_ocr_text, normalize_person_name
 
 
 def build_keyframe_search_text(kf: Dict[str, Any], scene: Dict[str, Any]) -> str:
@@ -53,10 +55,9 @@ def build_keyframe_search_text(kf: Dict[str, Any], scene: Dict[str, Any]) -> str
     # 3. 親シーンのOCR（ノイズが多いが含める）
     ocr = scene.get("ocr_text", "").strip()
     if ocr:
-        # 短すぎる行を簡易フィルタ
-        ocr_lines = [l.strip() for l in ocr.splitlines() if len(l.strip()) >= 3]
-        if ocr_lines:
-            parts.append("【テキスト】" + "\n".join(ocr_lines))
+        filtered_ocr = filter_ocr_text(ocr)
+        if filtered_ocr:
+            parts.append("【テキスト】" + filtered_ocr)
 
     # 4. ラベル
     labels = scene.get("labels", [])
@@ -66,11 +67,11 @@ def build_keyframe_search_text(kf: Dict[str, Any], scene: Dict[str, Any]) -> str
     # 5. 人物
     people: List[str] = []
     for f in scene.get("faces", []):
-        name = f.get("name", "")
-        if name and not name.startswith("Unknown"):
+        name = normalize_person_name(f.get("name", ""))
+        if name:
             people.append(name)
     for p in scene.get("namedPeople", []):
-        name = p.get("name", "")
+        name = normalize_person_name(p.get("name", ""))
         if name and name not in people:
             people.append(name)
     if people:
