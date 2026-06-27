@@ -40,13 +40,14 @@ def project_scene_document(scene: Dict[str, Any]) -> Dict[str, Any]:
     """
     Canonical Scene から 1 シーン = 1 検索ドキュメントを生成する。
 
-    id 形式: {videoId}_scene_{sceneId}
+    id: sceneId をそのまま使用する。
+    sceneId は extract_scene_facts.py が {videoId}_scene_{n} 形式で生成済み。
     """
     video_id = scene["videoId"]
     scene_id = scene["sceneId"]
 
     return {
-        "id":            f"{video_id}_scene_{scene_id}",
+        "id":            scene_id,
         "documentType":  "scene",
         "videoId":       video_id,
         "sceneId":       scene_id,
@@ -62,7 +63,8 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Canonical Scene から 1 キーフレーム = 1 検索ドキュメントのリストを生成する。
 
-    id 形式: {videoId}_scene_{sceneId}_keyframe_{keyFrameId}
+    id: {sceneId}_keyframe_{keyFrameId}
+    sceneId は extract_scene_facts.py が {videoId}_scene_{n} 形式で生成済み。
 
     beginMs / endMs:
       - 最初のキーフレーム: beginMs = シーン開始
@@ -100,7 +102,7 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
 
         documents.append({
-            "id":           f"{video_id}_scene_{scene_id}_keyframe_{keyframe_id}",
+            "id":           f"{scene_id}_keyframe_{keyframe_id}",
             "documentType": "keyframe",
             "videoId":      video_id,
             "sceneId":      scene_id,
