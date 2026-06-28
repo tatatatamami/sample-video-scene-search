@@ -31,7 +31,7 @@ from pathlib import Path
 
 import requests
 
-SEARCH_API_VERSION = "2024-11-01"      # Azure AI Search 最新安定版 GA
+SEARCH_API_VERSION = "2024-07-01"       # Azure AI Search 安定版 GA（検証済み）
 EMBEDDING_API_VERSION = "2024-10-21"  # Azure OpenAI / AI Services 最新安定版 GA
 
 
