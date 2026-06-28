@@ -23,6 +23,7 @@ Usage:
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -34,10 +35,13 @@ SEARCH_API_VERSION = "2024-07-01"
 EMBEDDING_API_VERSION = "2024-02-01"
 
 
+_AZ_CMD: str = shutil.which("az") or "az"
+
+
 def get_token(resource: str) -> str:
     """az CLI からアクセストークンを取得する。"""
     result = subprocess.run(
-        ["az", "account", "get-access-token", "--resource", resource,
+        [_AZ_CMD, "account", "get-access-token", "--resource", resource,
          "--query", "accessToken", "-o", "tsv"],
         capture_output=True, text=True, shell=False
     )
@@ -136,7 +140,7 @@ def create_or_update_index(
                 {
                     "name": "semantic-config",
                     "prioritizedFields": {
-                        "contentFields": [{"fieldName": "search_text"}]
+                        "prioritizedContentFields": [{"fieldName": "search_text"}]
                     },
                 }
             ]
@@ -149,8 +153,8 @@ def create_or_update_index(
         headers={**search_headers, "Content-Type": "application/json"},
         json=index_def,
     )
-    if resp.status_code in (200, 201):
-        action = "更新" if resp.status_code == 200 else "作成"
+    if resp.status_code in (200, 201, 204):
+        action = "更新" if resp.status_code in (200, 204) else "作成"
         print(f"  → インデックス '{index_name}' を{action}しました")
     else:
         print(f"ERROR: インデックス作成/更新失敗 {resp.status_code}: {resp.text[:600]}")
@@ -249,6 +253,8 @@ def main() -> None:
                     help="Embedding バッチサイズ (デフォルト: 16)")
     ap.add_argument("--skip-vectorization",   action="store_true",
                     help="Embedding 計算をスキップしてキーワード検索のみにする")
+    ap.add_argument("--search-api-key",       default="",
+                    help="Azure AI Search API キー (省略時は Azure CLI の RBAC トークンを使用)")
     args = ap.parse_args()
 
     if not args.skip_vectorization and not args.embedding_endpoint:
@@ -257,8 +263,11 @@ def main() -> None:
         sys.exit(1)
 
     # ---- 認証 ----
-    search_token = get_token("https://search.azure.com")
-    search_headers = {"Authorization": f"Bearer {search_token}"}
+    if args.search_api_key:
+        search_headers = {"api-key": args.search_api_key}
+    else:
+        search_token = get_token("https://search.azure.com")
+        search_headers = {"Authorization": f"Bearer {search_token}"}
 
     if not args.skip_vectorization:
         embed_token = get_token("https://cognitiveservices.azure.com")
