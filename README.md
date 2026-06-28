@@ -1,3 +1,4 @@
+
 # Video Scene Search / 動画シーン検索
 
 Azure AI Foundry Hosted Agent と Azure AI Search を活用した、動画のシーン・キーフレームを自然言語で検索できるデモアプリです。
@@ -24,7 +25,7 @@ Microsoft Foundry Hosted Agent
 
 アーキテクチャの詳細（ナレッジ設計・検索フロー・エージェントの役割）は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
 
-![動画シーン検索 デモ](docs/screenshot.png)
+<img width="2726" height="1752" alt="スクリーンショット 2026-06-28 230826" src="https://github.com/user-attachments/assets/5e495dbd-d777-467a-9228-1e5533734123" />
 
 ## 技術スタック
 
