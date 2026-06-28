@@ -20,6 +20,9 @@ launchSettings.json
 # Local model deployment overrides (copy from deployments.sample.json and customize)
 video-scene-search/deployments.local.json
 
+# Local video mapping overrides (videoId → actual file path, not for public commit)
+VideoSceneSearch/videomapping.Development.json
+
 # Large video files
 VideoSceneSearch/wwwroot/videos/*.mp4
 VideoSceneSearch/wwwroot/videos/*.avi

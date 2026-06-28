@@ -14,7 +14,9 @@ builder.Services.Configure<AzureAIFoundrySettings>(
     builder.Configuration.GetSection("AzureAIFoundry"));
 
 // Configure Video Mapping settings
+// videomapping.Development.json (gitignored) overrides videomapping.json for local testing.
 builder.Configuration.AddJsonFile("videomapping.json", optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile($"videomapping.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
 builder.Services.Configure<VideoMappingSettings>(
     builder.Configuration);
 
