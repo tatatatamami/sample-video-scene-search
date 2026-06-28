@@ -31,8 +31,8 @@ from pathlib import Path
 
 import requests
 
-SEARCH_API_VERSION = "2024-07-01"
-EMBEDDING_API_VERSION = "2024-02-01"
+SEARCH_API_VERSION = "2024-11-01"      # Azure AI Search 最新安定版 GA
+EMBEDDING_API_VERSION = "2024-10-21"  # Azure OpenAI / AI Services 最新安定版 GA
 
 
 _AZ_CMD: str = shutil.which("az") or "az"
@@ -132,7 +132,7 @@ def create_or_update_index(
                 }
             ],
             "profiles": [
-                {"name": "hnsw-profile", "algorithm": "hnsw-algo"}
+                {"name": "hnsw-profile", "algorithmConfigurationName": "hnsw-algo"}
             ],
         },
         "semantic": {
@@ -254,7 +254,10 @@ def main() -> None:
     ap.add_argument("--skip-vectorization",   action="store_true",
                     help="Embedding 計算をスキップしてキーワード検索のみにする")
     ap.add_argument("--search-api-key",       default="",
-                    help="Azure AI Search API キー (省略時は Azure CLI の RBAC トークンを使用)")
+                    help="Azure AI Search API キー (省略時は Azure CLI の RBAC トークンを使用)"
+                         " — セキュリティ上、RBAC 認証（用引数なし）を推奨。"
+                         " CLI 引数で渡すとシェル履歴・プロセスリストに残るため、"
+                         " 本番環境では環境変数等で渡すこと。")
     args = ap.parse_args()
 
     if not args.skip_vectorization and not args.embedding_endpoint:
