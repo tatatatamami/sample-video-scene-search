@@ -118,8 +118,8 @@ $env:AzureAIFoundry__ModelDeploymentName   = "gpt-4.1"
 
 | コンポーネント | 対象リソース | 必要なロール |
 |-------------|------------|------------|
-| Web アプリ（`DefaultAzureCredential`） | Azure AI Foundry | `Azure AI Developer` |
-| バッチスクリプト（`az account get-access-token`） | Azure AI Search | `Search Index Data Contributor` |
+| Web アプリ（`DefaultAzureCredential`） | Microsoft Foundry | `Foundry User` |
+| バッチスクリプト（`az account get-access-token`） | Azure AI Search | `Search Index Data Contributor` および `Search Service Contributor` |
 | バッチスクリプト（`az account get-access-token`） | Azure OpenAI | `Cognitive Services OpenAI User` |
 | `analyze_keyframes.py`（`DefaultAzureCredential`） | Azure AI サービス | `Cognitive Services User` |
 
