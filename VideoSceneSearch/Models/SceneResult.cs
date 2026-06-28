@@ -32,6 +32,14 @@ public class SceneResult
     [JsonPropertyName("mode")]
     public string? Mode { get; set; }
 
+    /// <summary>AI Search ドキュメントの sceneId。重複排除のグルーピングキー。</summary>
+    [JsonIgnore]
+    public string? SceneId { get; set; }
+
+    /// <summary>AI Search ドキュメントの id フィールド。重複排除のシーングループ導出に使用。</summary>
+    [JsonPropertyName("documentId")]
+    public string? DocumentId { get; set; }
+
     [JsonPropertyName("location")]
     public string? Location { get; set; }
 

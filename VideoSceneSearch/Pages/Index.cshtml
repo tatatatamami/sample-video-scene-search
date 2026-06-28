@@ -122,6 +122,9 @@
                 });
 
                 if (!response.ok) {
+                    if (response.status === 429) {
+                        throw new Error('リクエストが集中しています。数秒待ってから再度お試しください。');
+                    }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 

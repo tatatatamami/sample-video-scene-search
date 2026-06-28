@@ -30,4 +30,9 @@ public class AzureAISearchSettings
     /// 検索結果の最大取得件数。デフォルト: 10
     /// </summary>
     public int TopK { get; set; } = 10;
+
+    /// <summary>
+    /// Azure AI Search API キー（省略時は DefaultAzureCredential を使用）。
+    /// </summary>
+    public string? ApiKey { get; set; }
 }

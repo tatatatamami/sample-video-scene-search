@@ -120,41 +120,36 @@ app.MapPost("/api/scene-search", async (
             return Results.Ok(new { scenes = new List<SceneResult>() });
         }
 
-        // Deduplicate scenes with same videoId + start + end timestamps
-        // Keep the one with highest confidence, merge descriptions if different
+        // Deduplicate: same sceneId のシーンとキーフレームをまとめる。
+        // シーンドキュメント (mode=scene) を優先し、なければ最高信頼度のキーフレームを使用する。
+        // シーングループキー: documentId から _keyframe_N サフィックスを除去した値（AI Search の sceneId フィールドに依存しない）。
+        static string SceneGroupKey(SceneResult s)
+        {
+            var docId = s.DocumentId ?? s.SceneId ?? s.VideoId;
+            var keyframeIdx = docId.IndexOf("_keyframe_", StringComparison.Ordinal);
+            return keyframeIdx > 0 ? docId[..keyframeIdx] : docId;
+        }
+
         var deduplicatedScenes = sceneResponse.Scenes
-            .GroupBy(s => new { s.VideoId, s.Start, s.End })
+            .GroupBy(s => new { s.VideoId, SceneGroup = SceneGroupKey(s) })
             .Select(group =>
             {
-                // Get the scene with highest confidence
-                var bestScene = group.OrderByDescending(s => s.Confidence).First();
+                // scene ドキュメントを優先、なければ最高 confidence
+                var best = group
+                    .OrderBy(s => s.Mode == "scene" ? 0 : 1)
+                    .ThenByDescending(s => s.Confidence)
+                    .First();
 
-                // Collect unique descriptions from all scenes in the group
-                var allDescriptions = group
-                    .Where(s => !string.IsNullOrEmpty(s.Description))
-                    .Select(s => s.Description!)
-                    .Distinct()
-                    .ToList();
-
-                // If there are multiple unique descriptions, join them
-                if (allDescriptions.Count > 1)
-                {
-                    bestScene.Description = string.Join(" / ", allDescriptions);
-                }
-
-                // Collect unique evidence from all scenes
+                // 証拠 (evidence) を全エントリのもので補完
                 var allEvidence = group
                     .Where(s => !string.IsNullOrEmpty(s.Evidence))
                     .Select(s => s.Evidence!)
                     .Distinct()
                     .ToList();
-
                 if (allEvidence.Count > 1)
-                {
-                    bestScene.Evidence = string.Join("\n---\n", allEvidence);
-                }
+                    best.Evidence = string.Join("\n---\n", allEvidence);
 
-                return bestScene;
+                return best;
             })
             .OrderByDescending(s => s.Confidence)
             .ToList();
@@ -165,6 +160,13 @@ app.MapPost("/api/scene-search", async (
         sceneResponse.Scenes = deduplicatedScenes;
 
         return Results.Ok(sceneResponse);
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+    {
+        logger.LogWarning(ex, "Rate limit exceeded for Azure AI model");
+        return Results.Problem(
+            title: "リクエストが集中しています。数秒待ってから再度お試しください。",
+            statusCode: 429);
     }
     catch (Exception ex)
     {

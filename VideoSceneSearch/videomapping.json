@@ -1,5 +1,10 @@
 {
   "VideoMapping": {
+    "z8aygit0s2": {
+      "title": "マインクラフト／ザ・ムービー",
+      "file": "/videos/マインクラフト／ザ・ムービー.mp4",
+      "thumbnail": ""
+    },
     "sample-video-1": {
       "title": "Sample Video 1",
       "file": "/videos/sample1.mp4",

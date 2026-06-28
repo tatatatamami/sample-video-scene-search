@@ -46,6 +46,9 @@ public interface IAzureSearchService
         string? documentTypeFilter = null,
         string? scenePersonFilter = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>AI Search からドキュメントIDで直接取得する。タイムスタンプ補完用。</summary>
+    Task<RetrievedDocument?> GetDocumentByIdAsync(string documentId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -66,16 +69,25 @@ public class AzureSearchService : IAzureSearchService
         _settings = settings.Value;
         _logger = logger;
 
-        var credential = new DefaultAzureCredential();
-
-        _searchClient = new SearchClient(
-            new Uri(_settings.Endpoint),
-            _settings.IndexName,
-            credential);
+        if (!string.IsNullOrEmpty(_settings.ApiKey))
+        {
+            _searchClient = new SearchClient(
+                new Uri(_settings.Endpoint),
+                _settings.IndexName,
+                new Azure.AzureKeyCredential(_settings.ApiKey));
+        }
+        else
+        {
+            var credential = new DefaultAzureCredential();
+            _searchClient = new SearchClient(
+                new Uri(_settings.Endpoint),
+                _settings.IndexName,
+                credential);
+        }
 
         var openAiClient = new AzureOpenAIClient(
             new Uri(_settings.EmbeddingEndpoint),
-            credential);
+            new DefaultAzureCredential());
         _embeddingClient = openAiClient.GetEmbeddingClient(_settings.EmbeddingDeployment);
     }
 
@@ -183,8 +195,8 @@ public class AzureSearchService : IAzureSearchService
                 sb.AppendLine($"フレーム内人物: {string.Join(", ", visiblePeople)}");
             if (!string.IsNullOrEmpty(sceneSummary))
                 sb.AppendLine($"シーン要約: {sceneSummary}");
-            // 内容テキスト（長い場合は先頭 1200 文字のみ）
-            sb.AppendLine(text.Length > 1200 ? text[..1200] + "…" : text);
+            // 内容テキスト（長い場合は先頭 600 文字のみ — トークン節約）
+            sb.AppendLine(text.Length > 600 ? text[..600] + "…" : text);
             sb.AppendLine();
         }
 
@@ -220,4 +232,41 @@ public class AzureSearchService : IAzureSearchService
     /// <summary>OData フィルタ文字列内のシングルクォートをエスケープする。</summary>
     private static string EscapeODataString(string value)
         => value.Replace("'", "''");
+
+    /// <inheritdoc />
+    public async Task<RetrievedDocument?> GetDocumentByIdAsync(
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _searchClient.GetDocumentAsync<SearchDocument>(
+                documentId, cancellationToken: cancellationToken);
+            var doc = response.Value;
+
+            var docType     = GetString(doc, "documentType");
+            var videoId     = GetString(doc, "videoId");
+            var sceneId     = GetString(doc, "sceneId");
+            var beginMs     = GetInt(doc, "beginMs");
+            var endMs       = GetInt(doc, "endMs");
+            var timeMs      = GetInt(doc, "timeMs");
+            var sceneSummary = GetString(doc, "scene_summary");
+
+            return new RetrievedDocument(
+                VideoId: videoId,
+                DocumentType: docType,
+                SceneId: string.IsNullOrEmpty(sceneId) ? null : sceneId,
+                KeyFrameId: null,
+                BeginMs: beginMs,
+                EndMs: endMs,
+                TimeMs: timeMs,
+                SceneSummary: string.IsNullOrEmpty(sceneSummary) ? null : sceneSummary,
+                Score: 1.0);
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogWarning("Document not found in AI Search: {DocumentId}", documentId);
+            return null;
+        }
+    }
 }

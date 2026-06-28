@@ -21,6 +21,8 @@ resources:
 environment_variables:
     - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
       value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    - name: FOUNDRY_AGENT_TOOLSET_ENDPOINT
+      value: "https://ti-demo-ai-agents-swc-foundry.services.ai.azure.com/api/projects/proj-default/toolboxes/video-scene-toolbox/mcp?api-version=v1"
 code_configuration:
     runtime: dotnet_10
     entry_point: hello-world.dll
