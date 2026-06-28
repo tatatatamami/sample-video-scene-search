@@ -31,7 +31,7 @@
     Azure AI Search エンドポイント（例: https://<name>.search.windows.net）。
 
 .PARAMETER KeyframeIndexName
-    キーフレーム単位アップロード先の AI Search インデックス名（例: video-scenes-keyframe）。
+    キーフレーム単位アップロード先の AI Search インデックス名（例: video-scenes）。
     --Unit keyframe（デフォルト）で使用される。
 
 .PARAMETER SceneIndexName
@@ -55,7 +55,7 @@
         --CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
         --OutputDir           "output\マイクラ" `
         --SearchEndpoint      "https://<name>.search.windows.net" `
-        --KeyframeIndexName   "video-scenes-keyframe" `
+        --KeyframeIndexName   "video-scenes" `
         --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
         --EmbeddingDeployment "text-embedding-3-small"
 

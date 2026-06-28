@@ -9,7 +9,7 @@ Usage:
     python upload_to_aisearch.py \\
         --file             output/マイクラ/keyframe_docs.json \\
         --search-endpoint  https://<name>.search.windows.net \\
-        --index-name       video-scenes-keyframe \\
+        --index-name       video-scenes \\
         --embedding-endpoint   https://<resource>.services.ai.azure.com \\
         --embedding-deployment text-embedding-3-small
 
@@ -17,7 +17,7 @@ Usage:
     python upload_to_aisearch.py \\
         --file             output/マイクラ/keyframe_docs.json \\
         --search-endpoint  https://<name>.search.windows.net \\
-        --index-name       video-scenes-keyframe \\
+        --index-name       video-scenes \\
         --skip-vectorization
 """
 
@@ -236,7 +236,7 @@ def main() -> None:
     ap.add_argument("--search-endpoint",      "-s", required=True,
                     help="Azure AI Search エンドポイント (例: https://<name>.search.windows.net)")
     ap.add_argument("--index-name",           "-i", required=True,
-                    help="インデックス名 (例: video-scenes-keyframe)")
+                    help="インデックス名 (例: video-scenes)")
     ap.add_argument("--embedding-endpoint",   "-e", default="",
                     help="Azure OpenAI エンドポイント (例: https://<resource>.services.ai.azure.com)")
     ap.add_argument("--embedding-deployment", "-d", default="text-embedding-3-small",
