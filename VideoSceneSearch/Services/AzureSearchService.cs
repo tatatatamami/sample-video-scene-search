@@ -9,20 +9,42 @@ using VideoSceneSearch.Models;
 
 namespace VideoSceneSearch.Services;
 
+/// <summary>AI Search から取得した単一ドキュメントの必要最小情報。</summary>
+public sealed record RetrievedDocument(
+    string VideoId,
+    string DocumentType,
+    string? SceneId,
+    string? KeyFrameId,
+    int BeginMs,
+    int EndMs,
+    int TimeMs,
+    string? SceneSummary,
+    double Score);
+
+/// <summary>Azure AI Search 検索結果（コンテキスト文字列 ＋ ドキュメント辞書）。</summary>
+public sealed record AzureSearchResult(
+    string ContextText,
+    IReadOnlyDictionary<string, RetrievedDocument> Documents);
+
 public interface IAzureSearchService
 {
     /// <summary>
-    /// Azure AI Search でハイブリッド検索（テキスト＋ベクトル）を実行し、
-    /// エージェントに渡す取得済みコンテキスト文字列を返す。
+    /// Azure AI Search でハイブリッド検索（テキスト＋ベクトル＋セマンティックランカー）を実行し、
+    /// エージェントに渡す取得済みコンテキスト文字列とドキュメント辞書を返す。
     /// </summary>
     /// <param name="documentTypeFilter">
     /// OData フィルターに追加する documentType 値（"scene" / "keyframe" / null=両方）。
     /// 統合インデックスで scene と keyframe を使い分ける場合に指定します。
     /// </param>
-    Task<string> SearchAsync(
+    /// <param name="scenePersonFilter">
+    /// scenePeople コレクションの完全一致フィルター値。人物名を指定すると
+    /// <c>scenePeople/any(p: p eq '...')</c> フィルターが追加されます。
+    /// </param>
+    Task<AzureSearchResult> SearchAsync(
         string query,
         string? videoIdFilter = null,
         string? documentTypeFilter = null,
+        string? scenePersonFilter = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -57,30 +79,37 @@ public class AzureSearchService : IAzureSearchService
         _embeddingClient = openAiClient.GetEmbeddingClient(_settings.EmbeddingDeployment);
     }
 
-    public async Task<string> SearchAsync(
+    public async Task<AzureSearchResult> SearchAsync(
         string query,
         string? videoIdFilter = null,
         string? documentTypeFilter = null,
+        string? scenePersonFilter = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Azure AI Search: query={Query}, videoFilter={VideoFilter}, typeFilter={TypeFilter}",
-            query, videoIdFilter, documentTypeFilter);
+            "Azure AI Search: query={Query}, videoFilter={VideoFilter}, typeFilter={TypeFilter}, personFilter={PersonFilter}",
+            query, videoIdFilter, documentTypeFilter, scenePersonFilter);
 
         // クエリをベクトル化
         var embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
             query, cancellationToken: cancellationToken);
         ReadOnlyMemory<float> queryVector = embeddingResult.Value.ToFloats();
 
-        // ハイブリッド検索オプション（テキスト BM25 ＋ ベクトル HNSW）
+        // ハイブリッド検索オプション（テキスト BM25 ＋ ベクトル HNSW ＋ セマンティックランカー）
         var options = new SearchOptions
         {
             Size = _settings.TopK,
+            QueryType = SearchQueryType.Semantic,
+            SemanticSearch = new SemanticSearchOptions
+            {
+                SemanticConfigurationName = "semantic-config",
+            },
         };
         options.Select.Add("id");
         options.Select.Add("documentType");
         options.Select.Add("videoId");
         options.Select.Add("sceneId");
+        options.Select.Add("keyFrameId");
         options.Select.Add("beginMs");
         options.Select.Add("endMs");
         options.Select.Add("timeMs");
@@ -93,15 +122,17 @@ public class AzureSearchService : IAzureSearchService
         options.VectorSearch.Queries.Add(new VectorizedQuery(queryVector)
         {
             Fields = { "content_vector" },
-            KNearestNeighborsCount = _settings.TopK,
+            KNearestNeighborsCount = 50,  // セマンティックランカー使用時の推奨値
         });
 
-        // videoId フィルターと documentType フィルターを AND で結合
+        // フィルター構築
         var filterParts = new List<string>();
         if (!string.IsNullOrEmpty(videoIdFilter))
             filterParts.Add($"videoId eq '{EscapeODataString(videoIdFilter)}'");
         if (!string.IsNullOrEmpty(documentTypeFilter))
             filterParts.Add($"documentType eq '{EscapeODataString(documentTypeFilter)}'");
+        if (!string.IsNullOrEmpty(scenePersonFilter))
+            filterParts.Add($"scenePeople/any(p: p eq '{EscapeODataString(scenePersonFilter)}')");
         if (filterParts.Count > 0)
             options.Filter = string.Join(" and ", filterParts);
 
@@ -109,24 +140,43 @@ public class AzureSearchService : IAzureSearchService
             query, options, cancellationToken);
 
         var sb = new StringBuilder();
+        var documents = new Dictionary<string, RetrievedDocument>();
         int count = 0;
         await foreach (var result in searchResponse.Value.GetResultsAsync())
         {
             var doc = result.Document;
-            var docId      = GetString(doc, "id");
-            var docType    = GetString(doc, "documentType");
-            var videoId    = GetString(doc, "videoId");
-            var beginMs    = GetInt(doc, "beginMs");
-            var endMs      = GetInt(doc, "endMs");
-            var text       = GetString(doc, "search_text");
+            var docId        = GetString(doc, "id");
+            var docType      = GetString(doc, "documentType");
+            var videoId      = GetString(doc, "videoId");
+            var sceneId      = GetString(doc, "sceneId");
+            var keyFrameId   = GetString(doc, "keyFrameId");
+            var beginMs      = GetInt(doc, "beginMs");
+            var endMs        = GetInt(doc, "endMs");
+            var timeMs       = GetInt(doc, "timeMs");
+            var text         = GetString(doc, "search_text");
             var sceneSummary = GetString(doc, "scene_summary");
             var scenePeople  = GetStringList(doc, "scenePeople");
             var visiblePeople = GetStringList(doc, "visiblePeople");
-            var score      = result.Score ?? 0.0;
+            var score        = result.Score ?? 0.0;
+
+            // ドキュメント辞書に追加（resultId → メタデータ）
+            if (!string.IsNullOrEmpty(docId))
+            {
+                documents[docId] = new RetrievedDocument(
+                    VideoId: videoId,
+                    DocumentType: docType,
+                    SceneId: string.IsNullOrEmpty(sceneId) ? null : sceneId,
+                    KeyFrameId: string.IsNullOrEmpty(keyFrameId) ? null : keyFrameId,
+                    BeginMs: beginMs,
+                    EndMs: endMs,
+                    TimeMs: timeMs,
+                    SceneSummary: string.IsNullOrEmpty(sceneSummary) ? null : sceneSummary,
+                    Score: score);
+            }
 
             sb.AppendLine($"--- 検索結果 {++count} (score: {score:F3}) ---");
-            // 人物・ ID ・時刻は truncation の外側に必ず含める
-            sb.AppendLine($"id: {docId}  type: {docType}  videoId: {videoId}  beginMs: {beginMs}  endMs: {endMs}");
+            // 人物・ID・時刻は truncation の外側に必ず含める
+            sb.AppendLine($"id: {docId}  type: {docType}  videoId: {videoId}  sceneId: {sceneId}  beginMs: {beginMs}  endMs: {endMs}  timeMs: {timeMs}");
             if (scenePeople.Count > 0)
                 sb.AppendLine($"シーン登場人物: {string.Join(", ", scenePeople)}");
             if (visiblePeople.Count > 0 && docType == "keyframe")
@@ -138,15 +188,13 @@ public class AzureSearchService : IAzureSearchService
             sb.AppendLine();
         }
 
-        var context = sb.ToString();
         _logger.LogInformation("Azure AI Search: {Count} 件の結果を取得しました", count);
 
-        if (count == 0)
-        {
-            return "(関連するシーン情報が見つかりませんでした)";
-        }
+        string contextText = count == 0
+            ? "(関連するシーン情報が見つかりませんでした)"
+            : sb.ToString();
 
-        return context;
+        return new AzureSearchResult(contextText, documents);
     }
 
     // ---- ヘルパー ----

@@ -39,7 +39,7 @@ def get_token(resource: str) -> str:
     result = subprocess.run(
         ["az", "account", "get-access-token", "--resource", resource,
          "--query", "accessToken", "-o", "tsv"],
-        capture_output=True, text=True, shell=True
+        capture_output=True, text=True, shell=False
     )
     token = result.stdout.strip()
     if not token:
@@ -303,10 +303,24 @@ def main() -> None:
             vecs = compute_embeddings(
                 args.embedding_endpoint, args.embedding_deployment, batch, embed_headers
             )
+            # バッチ件数と次元数を検証する
+            if len(vecs) != len(batch):
+                raise ValueError(
+                    f"Embedding バッチ件数不一致: 期待 {len(batch)} 件, 取得 {len(vecs)} 件"
+                )
+            if any(len(v) != args.dimensions for v in vecs):
+                bad_dims = [len(v) for v in vecs if len(v) != args.dimensions][:3]
+                raise ValueError(
+                    f"Embedding 次元数不一致: 期待 {args.dimensions} 次元, 取得 {bad_dims} 次元"
+                )
             all_vectors.extend(vecs)
             done = min(i + args.embed_batch, len(texts))
             print(f"  {done}/{len(texts)} 件処理済み", end="\r", flush=True)
         print(f"  {len(all_vectors)} 件の Embedding を計算しました          ")
+        if len(all_vectors) != len(docs):
+            raise ValueError(
+                f"Embedding 総件数不一致: ドキュメント {len(docs)} 件に対し Embedding {len(all_vectors)} 件"
+            )
         upload_docs = [dict(doc, content_vector=vec) for doc, vec in zip(docs, all_vectors)]
     else:
         print(f"\n[2/3] Embedding 計算をスキップ")

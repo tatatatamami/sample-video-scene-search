@@ -10,7 +10,7 @@ public class AzureAISearchSettings
 
     /// <summary>
     /// 検索対象のインデックス名。
-    /// 例: video-scenes-keyframe
+    /// 例: video-scenes
     /// </summary>
     public string IndexName { get; set; } = string.Empty;
 
