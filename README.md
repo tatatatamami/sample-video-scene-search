@@ -16,7 +16,7 @@ build_knowledge.py
 Azure OpenAI Embeddings
   ↓
 Azure AI Search 統合インデックス（video-scenes）
-  ↓ BM25 + HNSW のハイブリッド検索
+  ↓ BM25 + HNSW + セマンティックランカー（ハイブリッド検索・RRF統合）
 ASP.NET Core Web Application
   ↓ 検索結果をコンテキストとして渡す
 Microsoft Foundry Hosted Agent
@@ -31,7 +31,8 @@ Microsoft Foundry Hosted Agent
 | Web アプリ | ASP.NET Core 8 Razor Pages |
 | AI エージェント | Azure AI Foundry Hosted Agent |
 | AI クライアント | OpenAI .NET SDK v2 (ResponsesClient) |
-| キーフレーム解析 | Azure Content Understanding（`prebuilt-image` ベースアナライザー） |
+| キーフレーム解析（推奨） | Azure Content Understanding（`prebuilt-image` ベースアナライザー、`analyze_keyframes.py`） |
+| キーフレーム解析（代替） | Azure OpenAI GPT-4.1 直接画像解析（`run-batch.ps1`） |
 | 動画解析 | Azure Video Indexer |
 | 検索インデックス | Azure AI Search（BM25 + HNSW ハイブリッド + セマンティックランカー） |
 | Embedding | Azure OpenAI text-embedding-3-small |
@@ -109,7 +110,7 @@ $env:AzureAISearch__EmbeddingDeployment = "text-embedding-3-small"
 $env:AzureAISearch__TopK               = "10"
 ```
 
-> **認証**: Web アプリは `DefaultAzureCredential` を使用します（API キー不要）。ローカル開発では `az login` 済みであれば追加設定は不要です。Azure 上（App Service など）では Managed Identity を割り当てることで `az login` なしで動作します。
+> **認証**: Web アプリは `DefaultAzureCredential` を使用します（API キー不要）。ローカル開発では `az login` で認証します。加えて、各 Azure リソースに対して必要な RBAC ロールを割り当ててください（詳しくは次の「RBAC の設定」セクションを参照）。Azure 上（App Service など）では Managed Identity を割り当てることで `az login` なしで動作します。
 
 ### 4. RBAC の設定
 
@@ -145,7 +146,8 @@ dotnet run
 ```
 VideoSceneSearch/Batch/
 ├── ContentUnderstanding/
-│   ├── analyze_keyframes.py       # Azure Content Understanding でキーフレーム解析
+│   ├── analyze_keyframes.py       # Azure Content Understanding でキーフレーム解析（推奨）
+│   ├── run-batch.ps1              # Azure OpenAI GPT-4.1 で直接画像解析（代替）
 │   ├── FeldSchema_sample.json     # フィールドスキーマ（サンプル）
 │   ├── input/
 │   │   └── _KeyFrameThumbnail/    # Video Indexer から取得したキーフレーム画像（.jpg）
@@ -161,7 +163,11 @@ VideoSceneSearch/Batch/
     └── output/                    # 生成ドキュメント（gitignore）
 ```
 
-### Step 1: キーフレーム画像の解析（Azure Content Understanding）
+### Step 1: キーフレーム画像の解析
+
+キーフレーム解析には 2 つの経路があります。
+
+#### Step 1（推奨）: Azure Content Understanding によるキーフレーム解析
 
 Azure Content Understanding を使用して、Video Indexer が抽出したキーフレーム画像を構造化分析します。
 
@@ -184,7 +190,28 @@ python analyze_keyframes.py `
 
 `FeldSchema_sample.json` をコピーして動画の内容に合わせてカスタマイズしてください。
 
-> **認証**: `DefaultAzureCredential` を使用します。ローカル実行時は `az login` 済みであれば追加設定は不要です。
+> **認証**: `DefaultAzureCredential` を使用します。ローカル実行時は `az login` で認証します。Azure Content Understanding リソースへの RBAC ロール付与も必要です（詳しくは「RBAC の設定」を参照）。
+
+#### Step 1（代替）: Azure OpenAI GPT-4.1 による直接画像解析
+
+Azure Content Understanding を使わず、Azure OpenAI の Chat Completions エンドポイントへ画像を直接送信する代替経路です。Content Understanding のアナライザー設定が不要なため、比較・検証に便利です。
+
+- **サービス**: Azure OpenAI（Chat Completions エンドポイント）
+- **モデル**: `gpt-4.1`（ハードコード）
+- **入力**: キーフレーム画像（`.jpg`）
+- **出力**: キーフレームごとの構造化 JSON
+
+```powershell
+cd VideoSceneSearch/Batch/ContentUnderstanding
+
+.\run-batch.ps1 `
+    -InputDir         "input\_KeyFrameThumbnail" `
+    -OutputDir        "output\YourVideo" `
+    -SchemaFile       "FeldSchema_sample.json" `
+    -ResourceEndpoint "https://YOUR-AOAI-RESOURCE.openai.azure.com"
+```
+
+> **認証**: `az account get-access-token` 経由でトークンを取得します。事前に `az login` が必要です。Azure OpenAI リソースへの RBAC ロール付与も必要です（詳しくは「RBAC の設定」を参照）。
 
 ### Step 2: シーン情報の抽出とナレッジドキュメント生成
 
