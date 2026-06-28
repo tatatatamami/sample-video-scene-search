@@ -2,11 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>HelloWorld</RootNamespace>
+    <RootNamespace>VideoSceneSearch</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- NU1903: suppress package vulnerability audit warnings for preview/alpha packages from the azure-sdk-for-net feed.
-         NU1605: suppress downgrade warnings that arise from preview transitive dependency resolution. -->
+    <!-- NU1903: suppress package vulnerability audit warnings for preview/alpha packages.
+         These packages are in preview and may have known vulnerabilities reported by NuGet audit.
+         Remove this suppression once stable GA versions are available and the packages are upgraded.
+         NU1605: suppress downgrade warnings from preview transitive dependency resolution. -->
     <NoWarn>$(NoWarn);NU1903;NU1605</NoWarn>
     <UserSecretsId>b0dc7863-5683-44ef-94d1-82ed3c1dd591</UserSecretsId>
   </PropertyGroup>
