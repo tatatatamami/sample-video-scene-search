@@ -24,6 +24,8 @@ Microsoft Foundry Hosted Agent
 
 アーキテクチャの詳細（ナレッジ設計・検索フロー・エージェントの役割）は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
 
+![動画シーン検索 デモ](docs/screenshot.png)
+
 ## 技術スタック
 
 | コンポーネント | 技術 |
