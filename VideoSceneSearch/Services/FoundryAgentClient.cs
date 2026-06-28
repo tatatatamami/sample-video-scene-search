@@ -2,6 +2,7 @@
 using Azure.Identity;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using VideoSceneSearch.Models;

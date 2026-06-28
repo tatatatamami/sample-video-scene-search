@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using VideoSceneSearch.Models;
 using VideoSceneSearch.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
@@ -11,10 +12,6 @@ builder.Services.AddRazorPages();
 // Configure Azure AI Foundry settings
 builder.Services.Configure<AzureAIFoundrySettings>(
     builder.Configuration.GetSection("AzureAIFoundry"));
-
-// Configure Azure AI Search settings
-builder.Services.Configure<AzureAISearchSettings>(
-    builder.Configuration.GetSection("AzureAISearch"));
 
 // Configure Video Mapping settings
 builder.Configuration.AddJsonFile("videomapping.json", optional: true, reloadOnChange: true);
@@ -101,7 +98,7 @@ app.MapPost("/api/scene-search", async (
             {
                 logger.LogWarning(
                     "Agent returned unknown videoId '{VideoId}' — excluding scene", scene.VideoId);
-                scene.VideoId = null; // mark for removal below
+                scene.VideoId = ""; // mark for removal below
                 continue;
             }
 
@@ -110,7 +107,7 @@ app.MapPost("/api/scene-search", async (
         }
 
         // Remove scenes excluded due to invalid videoId
-        sceneResponse.Scenes = sceneResponse.Scenes.Where(s => s.VideoId != null).ToList();
+        sceneResponse.Scenes = sceneResponse.Scenes.Where(s => !string.IsNullOrEmpty(s.VideoId)).ToList();
 
         if (sceneResponse.Scenes.Count == 0)
         {
