@@ -8,7 +8,7 @@ FeldSchema_*.json で定義したフィールドを Content Understanding Analyz
 出力は KeyFrameThumbnail_{thumbnailId}.json 形式で保存され、build_knowledge.py により読み込むことができる。
 
 Prerequisites:
-  pip install azure-identity requests
+  pip install -r requirements.txt
 
 Usage:
   python analyze_keyframes.py \\
@@ -48,6 +48,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
+# Content Understanding REST API バージョン。
+# 最新バージョンは以下を参照: https://learn.microsoft.com/azure/ai-services/content-understanding/
 API_VERSION = "2025-11-01"
 TOKEN_SCOPE = "https://cognitiveservices.azure.com/.default"
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
@@ -151,6 +153,8 @@ def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict,
     Content Understanding Analyzer を作成または更新する（PUT は idempotent）。
     201 Created の場合は Operation-Location をポーリングして作成完了を待つ。
     """
+    # allowReplace=true: 既存の Analyzer を上書き可能にする。
+    # PUT は idempotent であり、同じ定義での再実行は安全。
     url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}&allowReplace=true"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -187,15 +191,11 @@ def _poll_analyzer_creation(op_url: str, poll_interval: float = 3.0) -> None:
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         time.sleep(poll_interval)
-        resp = requests.get(
-            op_url,
+        resp = send_with_retry(
+            "GET", op_url,
             headers={"Authorization": f"Bearer {get_access_token()}"},
             timeout=30,
         )
-        if resp.status_code in {429, 500, 502, 503, 504}:
-            delay = float(resp.headers.get("Retry-After") or poll_interval)
-            time.sleep(delay)
-            continue
         resp.raise_for_status()
         data = resp.json()
         status = data.get("status", "").lower()
@@ -387,13 +387,14 @@ def normalize_fields(fields: dict) -> dict:
 
 
 def validate_fields(fields: dict) -> None:
-    """解析結果の必須フィールドを検証する。不正な場合は ValueError を送出する。"""
+    """解析結果の基本構造を検証する。不正な場合は ValueError を送出する。
+    フィールド名はスキーマ定義（FeldSchema_*.json）に依存するため、
+    ここでは dict 型かつ空でないことのみを確認する。
+    """
     if not isinstance(fields, dict):
         raise ValueError("Analyzer が有効なフィールドオブジェクトを返しませんでした。")
-    if not isinstance(fields.get("description"), str):
-        raise ValueError("description が欠落または無効な型です。")
-    if not isinstance(fields.get("objects", []), list):
-        raise ValueError("objects は配列である必要があります。")
+    if len(fields) == 0:
+        raise ValueError("Analyzer が空のフィールドを返しました。Analyzer の設定を確認してください。")
 
 
 def is_valid_output(path: Path, schema_hash: str) -> bool:
@@ -402,11 +403,8 @@ def is_valid_output(path: Path, schema_hash: str) -> bool:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
         analysis = data.get("analysis")
-        if not (
-            isinstance(analysis, dict)
-            and isinstance(analysis.get("description"), str)
-            and isinstance(analysis.get("objects", []), list)
-        ):
+        # フィールド名はスキーマに依存するため、dict 型かつ空でないことのみを確認する
+        if not isinstance(analysis, dict) or len(analysis) == 0:
             return False
         return data.get("usage", {}).get("schemaHash") == schema_hash
     except (OSError, json.JSONDecodeError):
