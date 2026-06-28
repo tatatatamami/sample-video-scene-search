@@ -198,6 +198,8 @@ public class FoundryAgentClient : IFoundryAgentClient
         {
             _logger.LogWarning(ex, "応答テキスト抽出失敗: {Json}", responseJson[..Math.Min(200, responseJson.Length)]);
         }
+        // テキストが見つからない場合、デバッグのためにレスポンス全体をログ出力
+        _logger.LogWarning("応答テキストなし。全レスポンス: {Json}", responseJson[..Math.Min(1000, responseJson.Length)]);
         return "";
     }
 
