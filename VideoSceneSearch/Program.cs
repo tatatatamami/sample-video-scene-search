@@ -60,8 +60,8 @@ app.MapPost("/api/scene-search", async (
         var availableVideos = videoMappingSettings.Value.VideoMapping
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Title);
 
-        // Get JSON response from agent
-        var jsonResult = await foundryClient.SearchScenesAsync(request.Query, availableVideos, cancellationToken);
+        // Get JSON response from agent (query only — videoId/timestamps come from [文書メタデータ] blocks in AI Search docs)
+        var jsonResult = await foundryClient.SearchScenesAsync(request.Query, cancellationToken);
 
         // Configure JSON options to be case-insensitive
         var jsonOptions = new JsonSerializerOptions

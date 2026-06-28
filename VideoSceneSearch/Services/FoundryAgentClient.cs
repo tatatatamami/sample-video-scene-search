@@ -2,7 +2,6 @@
 using Azure.Identity;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using VideoSceneSearch.Models;
@@ -11,7 +10,7 @@ namespace VideoSceneSearch.Services;
 
 public interface IFoundryAgentClient
 {
-    Task<string> SearchScenesAsync(string query, Dictionary<string, string> availableVideos, CancellationToken cancellationToken = default);
+    Task<string> SearchScenesAsync(string query, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -59,7 +58,6 @@ public class FoundryAgentClient : IFoundryAgentClient
 
     public async Task<string> SearchScenesAsync(
         string query,
-        Dictionary<string, string> availableVideos,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Foundry Hosted Agent 呼び出し: {Endpoint}", _responsesEndpoint);
@@ -68,9 +66,9 @@ public class FoundryAgentClient : IFoundryAgentClient
         var tokenCtx = new TokenRequestContext(["https://ai.azure.com/.default"]);
         var token = await _credential.GetTokenAsync(tokenCtx, cancellationToken);
 
-        // ユーザーメッセージ構築 — クエリと利用可能動画リストのみ送信
-        // AI Search は Hosted Agent が Toolbox MCP 経由で自律的に呼び出す
-        string userMessage = BuildUserMessage(query, availableVideos);
+        // ユーザーメッセージ = クエリのみ。動画リスト等は送らない。
+        // videoId/タイムスタンプは AI Search ドキュメントの [文書メタデータ] ブロックから抽出する。
+        string userMessage = query;
 
         // OpenAI Responses API リクエストボディ
         var requestBody = JsonSerializer.Serialize(new
@@ -128,11 +126,10 @@ public class FoundryAgentClient : IFoundryAgentClient
                 videoId = parts.Length > 1 ? parts[0] : item.DocumentId;
             }
 
-            var title = availableVideos.TryGetValue(videoId, out var t) ? t : videoId;
             scenes.Add(new SceneResult
             {
                 VideoId     = videoId,
-                Title       = title,
+                Title       = videoId, // Program.cs で officialTitle に上書きされる
                 Start       = MsToTimeString(item.StartMs),
                 End         = MsToTimeString(item.EndMs),
                 Confidence  = Math.Max(0.1, 1.0 - (i * 0.1)),
@@ -147,23 +144,6 @@ public class FoundryAgentClient : IFoundryAgentClient
         return JsonSerializer.Serialize(new SceneSearchResponse { Scenes = scenes }, jsonOpts);
     }
 
-    /// <summary>
-    /// Hosted Agent へ送信するユーザーメッセージを構築する。
-    /// AI Search はエージェント側が Toolbox MCP 経由で実行するため、
-    /// ここでは検索コンテキストは含めずクエリと動画リストのみを送信する。
-    /// </summary>
-    private static string BuildUserMessage(string query, Dictionary<string, string> availableVideos)
-    {
-        var sb = new StringBuilder();
-        if (availableVideos.Count > 0)
-        {
-            sb.AppendLine("Available videos:");
-            foreach (var v in availableVideos) sb.AppendLine($"- {v.Key}: {v.Value}");
-            sb.AppendLine();
-        }
-        sb.Append($"User query: {query}");
-        return sb.ToString();
-    }
 
     /// <summary>
     /// OpenAI Responses API のレスポンス JSON からアシスタントのテキストを抽出します。
