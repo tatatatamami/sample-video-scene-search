@@ -62,6 +62,9 @@ resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
         aadAuthFailureMode: 'http401WithBearerChallenge'
       }
     }
+    // disableLocalAuth is intentionally false to allow API key authentication.
+    // The Batch ingestion scripts (upload_to_aisearch.py) support --search-api-key for local runs.
+    // For production workloads using managed identity exclusively, consider changing this to true.
     disableLocalAuth: false
     encryptionWithCmk: {
       enforcement: 'Unspecified'

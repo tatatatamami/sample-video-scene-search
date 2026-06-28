@@ -17,6 +17,9 @@ appsettings.*.json
 !appsettings.json
 launchSettings.json
 
+# Local model deployment overrides (copy from deployments.sample.json and customize)
+video-scene-search/deployments.local.json
+
 # Large video files
 VideoSceneSearch/wwwroot/videos/*.mp4
 VideoSceneSearch/wwwroot/videos/*.avi

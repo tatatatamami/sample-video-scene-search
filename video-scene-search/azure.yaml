@@ -3,7 +3,7 @@
 requiredVersions:
     extensions:
         azure.ai.agents: '>=0.1.0-preview'
-name: ai-foundry-starter-basic
+name: video-scene-search
 services:
     video-scene-search:
         project: src/video-scene-search
@@ -14,6 +14,14 @@ services:
                 resources:
                     cpu: "0.5"
                     memory: 1Gi
+            # Model deployment used for this agent.
+            # These values are sample defaults. To customize (e.g., different model, capacity, or SKU)
+            # for local testing without modifying this file, override via azd environment variable:
+            #
+            #   azd env set AI_PROJECT_DEPLOYMENTS (Get-Content deployments.local.json -Raw)
+            #
+            # See deployments.sample.json for the full schema.
+            # deployments.local.json is gitignored — safe to put personal settings there.
             deployments:
                 - model:
                     format: OpenAI
