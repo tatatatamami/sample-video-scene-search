@@ -43,10 +43,10 @@ ASP.NET Core Web Application
 |---|---|
 | Web アプリ | ASP.NET Core 8 Razor Pages |
 | AI エージェント | Azure AI Foundry Hosted Agent |
-| AI クライアント | HttpClient（Responses API 直接呼び出し） |
-| キーフレーム解析 | Azure AI Content Understanding（`prebuilt-image` ベースアナライザー） |
+| AI クライアント | HttpClient |
+| キーフレーム解析 | Azure AI Content Understanding |
 | 動画解析 | Azure Video Indexer |
-| 検索インデックス | Azure AI Search（BM25 + HNSW ハイブリッド + セマンティックランカー） |
+| 検索インデックス | Azure AI Search |
 | Embedding | Azure OpenAI text-embedding-3-small |
 | 認証 | Azure.Identity / DefaultAzureCredential |
 
