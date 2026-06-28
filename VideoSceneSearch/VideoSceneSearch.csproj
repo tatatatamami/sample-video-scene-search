@@ -11,11 +11,4 @@
     <PackageReference Include="Azure.Identity" Version="1.17.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Batch\ContentUnderstanding\output\パワプロ\" />
-    <Folder Include="Batch\ContentUnderstanding\output\マリオ\" />
-    <Folder Include="Batch\ContentUnderstanding\output\マイクラ\" />
-    <Folder Include="Batch\SceneAggregate\output\パワプロ\" />
-  </ItemGroup>
-
 </Project>

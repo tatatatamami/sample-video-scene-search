@@ -148,7 +148,7 @@ Azure AI Search の統合インデックス `video-scenes` に、`documentType` 
 
 | フィルター | 条件例 | 状態 |
 |-----------|--------|------|
-| `videoId` | `videoId eq 'minecraft'` | **実装済み・自動適用** |
+| `videoId` | `videoId eq 'sample-video-a'` | **実装済み・自動適用** |
 | `documentType` | `documentType eq 'scene'` | **実装済み・自動適用**（クエリルーティング結果） |
 
 インデックス側で `filterable` として定義済みのフィールド（現在は検索時に自動適用していない）:
@@ -203,24 +203,24 @@ FoundryAgentClient                    Hosted Agent (gpt-4.1)
    Available videos: ...
    [Azure AI Search 取得済みコンテキスト]
    --- 検索結果 1 (score: 0.612) ---        → 受け取る
-   id: z8aygit0s2_scene_3
-   type: scene  videoId: minecraft
+   id: sample-video-a_scene_3
+   type: scene  videoId: sample-video-a
    beginMs: 83100  endMs: 91330
-   シーン登場人物: スティーブ, ギャレット
-   シーン要約: 登場人物: スティーブ / ...
+   シーン登場人物: キャラクターA, キャラクターB
+   シーン要約: 登場人物: キャラクターA / ...
    ...
-   User query: スティーブが出てくるシーン
+   User query: キャラクターAが出てくるシーン
 
                                         ③ resultId を選んで返す
                                            {
                                              "scenes": [{
-                                               "resultId": "z8aygit0s2_scene_3",
-                                               "evidence": "スティーブが登場している..."
+                                               "resultId": "sample-video-a_scene_3",
+                                               "evidence": "キャラクターAが登場している..."
                                              }]
                                            }
 
 ④ resultId → Documents で検索結果を引く
-   VideoId     = "minecraft"
+   VideoId     = "sample-video-a"
    Start       = "00:01:23"  (beginMs から変換)
    End         = "00:01:31"  (endMs から変換)
    Confidence  = doc.Score / maxScore（正規化済み取得スコア: 0.0〜1.0）

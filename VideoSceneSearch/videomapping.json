@@ -1,23 +1,23 @@
 {
   "VideoMapping": {
-    "z8aygit0s2": {
-      "title": "マインクラフト／ザ・ムービー",
-      "file": "/videos/マインクラフト／ザ・ムービー.mp4",
+    "sample-video-a": {
+      "title": "Sample Video A",
+      "file": "/videos/sample-video-a.mp4",
       "thumbnail": ""
     },
-    "wmwin81h3r": {
-      "title": "ザ・スーパーマリオギャラクシー・ムービー オフィシャルトレーラー",
-      "file": "/videos/ザ・スーパーマリオギャラクシー・ムービー オフィシャルトレーラー.mp4",
+    "sample-video-b": {
+      "title": "Sample Video B",
+      "file": "/videos/sample-video-b.mp4",
       "thumbnail": ""
     },
-    "1vgnbs69ar": {
-      "title": "パワプロ2024-2025プロモーションムービー",
-      "file": "/videos/パワプロ2024-2025プロモーションムービー.mp4",
+    "sample-video-c": {
+      "title": "Sample Video C",
+      "file": "/videos/sample-video-c.mp4",
       "thumbnail": ""
     },
-    "wr6mm0g3wq": {
-      "title": "プロ野球スピリッツ2024-2025プロモーションムービー",
-      "file": "/videos/プロ野球スピリッツ2024-2025プロモーションムービ.mp4",
+    "sample-video-d": {
+      "title": "Sample Video D",
+      "file": "/videos/sample-video-d.mp4",
       "thumbnail": ""
     },
     "sample-video-1": {
