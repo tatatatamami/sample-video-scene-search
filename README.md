@@ -17,10 +17,20 @@ build_knowledge.py
 Azure OpenAI Embeddings
   ↓
 Azure AI Search 統合インデックス（video-scenes）
-  ↓ BM25 + HNSW のハイブリッド検索
+
+--- 検索時 ---
+
 ASP.NET Core Web Application
-  ↓ 検索結果をコンテキストとして渡す
+  ↓ ユーザークエリを Responses API で送信
 Microsoft Foundry Hosted Agent
+  ↓ MCP ツール呼び出し
+Foundry Toolbox
+  ↓ ハイブリッド検索（BM25 + HNSW + セマンティックランカー）
+Azure AI Search
+  ↓ 検索結果
+Microsoft Foundry Hosted Agent
+  ↓ シーン情報を JSON で返却
+ASP.NET Core Web Application
 ```
 
 アーキテクチャの詳細（ナレッジ設計・検索フロー・エージェントの役割）は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
