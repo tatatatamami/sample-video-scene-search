@@ -7,8 +7,8 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background-color: #f5f5f5;
+    color: #e6edf3;
+    background-color: #0d1117;
 }
 
 .container {
@@ -21,11 +21,13 @@ body {
 header {
     text-align: center;
     padding: 30px 0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: #161b22;
+    color: #e6edf3;
     border-radius: 10px;
     margin-bottom: 30px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #30363d;
+    border-bottom: 3px solid #58a6ff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 header h1 {
@@ -39,10 +41,11 @@ header p {
 }
 
 main {
-    background: white;
+    background: #161b22;
     border-radius: 10px;
     padding: 40px 50px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid #30363d;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 section {
@@ -52,9 +55,10 @@ section {
 section h2 {
     font-size: 1.8em;
     margin-bottom: 20px;
-    color: #667eea;
-    border-bottom: 2px solid #667eea;
+    color: #58a6ff;
+    border-bottom: 1px solid #30363d;
     padding-bottom: 10px;
+    letter-spacing: 0.02em;
 }
 
 /* Search Section */
@@ -72,31 +76,35 @@ section h2 {
     flex: 1;
     padding: 15px;
     font-size: 16px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 6px;
     transition: border-color 0.3s;
 }
 
 #queryInput:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
 }
 
 #searchButton {
     padding: 15px 30px;
     font-size: 16px;
-    font-weight: bold;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-weight: 600;
+    background: #1f6feb;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: transform 0.2s, opacity 0.3s;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, box-shadow 0.2s;
 }
 
 #searchButton:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background: #388bfd;
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
 }
 
 #searchButton:disabled {
@@ -108,8 +116,9 @@ section h2 {
 .loading {
     text-align: center;
     padding: 20px;
-    color: #667eea;
-    font-weight: bold;
+    color: #58a6ff;
+    font-weight: 600;
+    letter-spacing: 0.05em;
 }
 
 /* Results Section */
@@ -119,7 +128,7 @@ section h2 {
 
 .no-results {
     text-align: center;
-    color: #999;
+    color: #8b949e;
     padding: 40px;
     font-style: italic;
 }
@@ -153,8 +162,8 @@ section h2 {
 }
 
 .result-card {
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: #1c2128;
+    border: 1px solid #30363d;
     border-radius: 8px;
     padding: 20px;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -173,13 +182,13 @@ section h2 {
 }
 
 .result-header h4 {
-    color: #333;
+    color: #e6edf3;
     font-size: 1.2em;
     flex: 1;
 }
 
 .score {
-    background: #667eea;
+    background: #1f6feb;
     color: white;
     padding: 4px 10px;
     border-radius: 12px;
@@ -190,7 +199,7 @@ section h2 {
 }
 
 .result-time {
-    color: #666;
+    color: #8b949e;
     font-size: 0.9em;
     margin-bottom: 10px;
 }
@@ -204,19 +213,20 @@ section h2 {
 .play-button {
     width: 100%;
     padding: 10px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #1f6feb;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 14px;
-    font-weight: bold;
+    font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s;
+    letter-spacing: 0.02em;
+    transition: background 0.2s, box-shadow 0.2s;
 }
 
 .play-button:hover {
-    transform: scale(1.02);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    background: #388bfd;
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.35);
 }
 
 /* Two-column layout: results (left) + video player (right) */
@@ -240,9 +250,10 @@ section h2 {
 .results-heading {
     font-size: 1.8em;
     margin-bottom: 20px;
-    color: #667eea;
-    border-bottom: 2px solid #667eea;
+    color: #58a6ff;
+    border-bottom: 1px solid #30363d;
     padding-bottom: 10px;
+    letter-spacing: 0.02em;
 }
 
 /* Video Section */
@@ -250,12 +261,13 @@ section h2 {
 .video-section h2 {
     font-size: 1.8em;
     margin-bottom: 16px;
-    color: #667eea;
+    color: #58a6ff;
 }
 .video-section {
-    background: #fafafa;
+    background: #1c2128;
     padding: 24px;
     border-radius: 10px;
+    border: 1px solid #30363d;
     height: 100%;
     overflow-y: auto;
 }
@@ -273,19 +285,19 @@ section h2 {
 }
 
 .video-info {
-    background: white;
+    background: #0d1117;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid #30363d;
 }
 
 .video-info h3 {
-    color: #667eea;
+    color: #58a6ff;
     margin-bottom: 10px;
 }
 
 .video-info p {
-    color: #666;
+    color: #8b949e;
     line-height: 1.6;
 }
 
@@ -328,15 +340,15 @@ section h2 {
 
 /* Scene Summary */
 .scene-summary {
-    background: #f0f4ff;
+    background: #1c2128;
     padding: 1.5rem;
     border-radius: 8px;
-    border-left: 4px solid #667eea;
+    border-left: 3px solid #58a6ff;
     margin-bottom: 2rem;
 }
 
 .scene-summary h3 {
-    color: #333;
+    color: #e6edf3;
     font-size: 1.3em;
     margin-bottom: 0.5rem;
 }
@@ -349,12 +361,12 @@ section h2 {
 
 /* Candidate Card */
 .candidate-card {
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: #1c2128;
+    border: 1px solid #30363d;
     border-radius: 8px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     transition: box-shadow 0.2s;
 }
 
@@ -363,26 +375,26 @@ section h2 {
 }
 
 .candidate-header {
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #30363d;
     padding-bottom: 1rem;
     margin-bottom: 1rem;
 }
 
 .candidate-video-id {
-    color: #666;
+    color: #8b949e;
     font-size: 0.9em;
     margin-bottom: 0.3rem;
 }
 
 .candidate-title {
-    color: #333;
+    color: #e6edf3;
     font-size: 1em;
     font-weight: 600;
     margin-bottom: 0.5rem;
 }
 
 .candidate-timestamp {
-    color: #555;
+    color: #8b949e;
     font-size: 0.95em;
     display: flex;
     align-items: center;
@@ -435,7 +447,7 @@ section h2 {
 .candidate-actions {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid #30363d;
 }
 
 .candidate-actions .play-button {
@@ -445,18 +457,18 @@ section h2 {
 
 /* Scene Card (New JSON Schema) */
 .scene-card {
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: #1c2128;
+    border: 1px solid #30363d;
     border-radius: 8px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    transition: box-shadow 0.2s, transform 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 .scene-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    border-color: #58a6ff;
 }
 
 .scene-header {
@@ -465,7 +477,7 @@ section h2 {
     align-items: flex-start;
     margin-bottom: 1rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #30363d;
 }
 
 .scene-title {
@@ -476,18 +488,18 @@ section h2 {
 }
 
 .scene-title strong {
-    color: #333;
+    color: #e6edf3;
     font-size: 1.1em;
 }
 
 .video-id {
-    color: #666;
+    color: #8b949e;
     font-size: 0.85em;
     font-weight: normal;
 }
 
 .scene-video-title {
-    color: #667eea;
+    color: #58a6ff;
     font-size: 0.95em;
     font-weight: 600;
 }
@@ -497,26 +509,26 @@ section h2 {
 }
 
 .scene-timestamp {
-    color: #555;
+    color: #8b949e;
     font-size: 0.95em;
     margin-bottom: 0.8rem;
     padding: 0.5rem;
-    background: #f5f5f5;
+    background: #0d1117;
     border-radius: 4px;
 }
 
 .scene-description {
-    color: #333;
+    color: #c9d1d9;
     line-height: 1.6;
     margin-bottom: 0.8rem;
 }
 
 .scene-evidence {
-    color: #555;
+    color: #8b949e;
     line-height: 1.6;
     padding: 0.8rem;
-    background: #f9f9f9;
-    border-left: 3px solid #667eea;
+    background: #0d1117;
+    border-left: 3px solid #58a6ff;
     border-radius: 4px;
     font-size: 0.95em;
 }
@@ -524,7 +536,7 @@ section h2 {
 .scene-actions {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid #30363d;
 }
 
 .scene-actions .play-button {
@@ -535,7 +547,7 @@ section h2 {
 
 /* Scene Metadata Tags */
 .scene-metadata {
-    background: #f8f9fa;
+    background: #0d1117;
     border-radius: 6px;
     padding: 0.8rem 1rem;
     margin-bottom: 1rem;
@@ -552,7 +564,7 @@ section h2 {
 }
 
 .metadata-item strong {
-    color: #555;
+    color: #8b949e;
     font-size: 0.85em;
     min-width: 70px;
 }
@@ -566,23 +578,27 @@ section h2 {
 }
 
 .tag-mode {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: #1c2128;
+    color: #58a6ff;
+    border: 1px solid #30363d;
 }
 
 .tag-location {
-    background: #f3e5f5;
-    color: #7b1fa2;
+    background: #1c2128;
+    color: #bc8cff;
+    border: 1px solid #30363d;
 }
 
 .tag-info {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: #1c2128;
+    color: #3fb950;
+    border: 1px solid #30363d;
 }
 
 .tag-action {
-    background: #fff3e0;
-    color: #e65100;
+    background: #1c2128;
+    color: #ffa657;
+    border: 1px solid #30363d;
 }
 
 

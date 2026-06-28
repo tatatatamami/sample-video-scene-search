@@ -157,10 +157,23 @@ def build_scene_search_text(scene: Dict[str, Any]) -> str:
     """
     シーン検索ドキュメント用 search_text を生成する。
 
+    先頭に [文書メタデータ] ブロックを追加することで、
+    Foundry Toolbox の Azure AI Search MCP ツールが返す content テキストから
+    Hosted Agent が videoId / beginMs / endMs / documentType などを抽出できる。
+
     シーン全体の内容（全キーフレームの画像説明を含む）を検索対象とする。
     会話・出来事を探す用途に適している。
     """
     parts: List[str] = []
+
+    # --- 構造化メタデータヘッダー (MCP ツール応答からエージェントが抽出する) ---
+    parts.append("[文書メタデータ]")
+    parts.append(f"id: {scene.get('sceneId', '')}")
+    parts.append(f"videoId: {scene.get('videoId', '')}")
+    parts.append(f"beginMs: {scene.get('beginMs', 0)}")
+    parts.append(f"endMs: {scene.get('endMs', 0)}")
+    parts.append(f"documentType: visual")
+    parts.append("[/文書メタデータ]")
 
     append_text(parts, "シーン要約", scene.get("scene_summary"))
     parts.extend(build_scene_context_parts(scene, include_transcript=True, include_ocr=True))

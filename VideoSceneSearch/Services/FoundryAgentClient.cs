@@ -16,29 +16,35 @@ public interface IFoundryAgentClient
 
 /// <summary>
 /// Azure AI Foundry Hosted Agent（Responses プロトコル）を HttpClient 経由で呼び出す。
-/// エージェントは Foundry Toolbox 経由で AI Search を自律的に呼び出す。
+/// AI Search は Hosted Agent が Foundry Toolbox (MCP) 経由で自律的に呼び出す。
+/// Web アプリはこのクライアントだけを呼び出してシーン検索結果を取得する。
 /// </summary>
 public class FoundryAgentClient : IFoundryAgentClient
 {
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(120) };
     private readonly AzureAIFoundrySettings _settings;
-    private readonly IAzureSearchService _searchService;
     private readonly ILogger<FoundryAgentClient> _logger;
     private readonly TokenCredential _credential;
     private readonly Uri _responsesEndpoint;
 
-    private sealed record AgentPickResponse([property: JsonPropertyName("scenes")] List<AgentPick> Scenes);
-    private sealed record AgentPick(
-        [property: JsonPropertyName("resultId")] string ResultId,
+    // Agent が Toolbox 経由で AI Search を呼び出した後に返すレスポンス形式
+    private sealed record AgentSceneResponse(
+        [property: JsonPropertyName("scenes")] List<AgentSceneItem> Scenes);
+
+    private sealed record AgentSceneItem(
+        [property: JsonPropertyName("documentId")] string DocumentId,
+        [property: JsonPropertyName("videoId")] string VideoId,
+        [property: JsonPropertyName("startMs")] int StartMs,
+        [property: JsonPropertyName("endMs")] int EndMs,
+        [property: JsonPropertyName("sceneSummary")] string SceneSummary,
+        [property: JsonPropertyName("documentType")] string? DocumentType,
         [property: JsonPropertyName("evidence")] string Evidence);
 
     public FoundryAgentClient(
         IOptions<AzureAIFoundrySettings> settings,
-        IAzureSearchService searchService,
         ILogger<FoundryAgentClient> logger)
     {
         _settings = settings.Value;
-        _searchService = searchService;
         _logger = logger;
         _credential = new DefaultAzureCredential();
 
@@ -56,19 +62,15 @@ public class FoundryAgentClient : IFoundryAgentClient
         Dictionary<string, string> availableVideos,
         CancellationToken cancellationToken = default)
     {
-        // Step 1: Web アプリが AI Search を事前検索して正確な ID を取得
-        var searchResult = await _searchService.SearchAsync(query, cancellationToken: cancellationToken);
-        if (searchResult.Documents.Count == 0)
-            return JsonSerializer.Serialize(new SceneSearchResponse());
-
         _logger.LogInformation("Foundry Hosted Agent 呼び出し: {Endpoint}", _responsesEndpoint);
 
-        // Step 2: Entra ID ベアラートークン取得
+        // Entra ID ベアラートークン取得
         var tokenCtx = new TokenRequestContext(["https://ai.azure.com/.default"]);
         var token = await _credential.GetTokenAsync(tokenCtx, cancellationToken);
 
-        // Step 3: AI Search 結果をコンテキストとして含むユーザーメッセージを構築
-        string userMessage = BuildUserMessage(query, availableVideos, searchResult.ContextText);
+        // ユーザーメッセージ構築 — クエリと利用可能動画リストのみ送信
+        // AI Search は Hosted Agent が Toolbox MCP 経由で自律的に呼び出す
+        string userMessage = BuildUserMessage(query, availableVideos);
 
         // OpenAI Responses API リクエストボディ
         var requestBody = JsonSerializer.Serialize(new
@@ -102,48 +104,43 @@ public class FoundryAgentClient : IFoundryAgentClient
             cleanJson = System.Text.RegularExpressions.Regex.Replace(
                 cleanJson, @"```(?:json)?\s*|\s*```", "").Trim();
 
-        // JSON パース
+        // Agent が返す構造化 JSON をパース
         var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        AgentPickResponse? picks = null;
-        try { picks = JsonSerializer.Deserialize<AgentPickResponse>(cleanJson, jsonOpts); }
+        AgentSceneResponse? parsed = null;
+        try { parsed = JsonSerializer.Deserialize<AgentSceneResponse>(cleanJson, jsonOpts); }
         catch (Exception ex) { _logger.LogWarning(ex, "Agent JSON パース失敗: {Text}", cleanJson); }
 
-        if (picks?.Scenes == null || picks.Scenes.Count == 0)
+        if (parsed?.Scenes == null || parsed.Scenes.Count == 0)
             return JsonSerializer.Serialize(new SceneSearchResponse());
 
-        // Step 4: AI Search キャッシュを優先してメタデータ補完、なければ直接取得
+        // Agent レスポンスからシーン結果を構築
         var scenes = new List<SceneResult>();
-        for (int i = 0; i < picks.Scenes.Count; i++)
+        for (int i = 0; i < parsed.Scenes.Count; i++)
         {
-            var pick = picks.Scenes[i];
-            if (string.IsNullOrEmpty(pick.ResultId)) continue;
+            var item = parsed.Scenes[i];
+            if (string.IsNullOrEmpty(item.DocumentId)) continue;
 
-            // まず事前検索結果キャッシュを参照（ID が正確なため推奨）
-            RetrievedDocument? doc = null;
-            if (!searchResult.Documents.TryGetValue(pick.ResultId, out doc))
+            // videoId: Agent が [文書メタデータ] から抽出できなかった場合は documentId をパース
+            var videoId = item.VideoId;
+            if (string.IsNullOrEmpty(videoId))
             {
-                // キャッシュにない場合は AI Search へ直接取得
-                doc = await _searchService.GetDocumentByIdAsync(pick.ResultId, cancellationToken);
-            }
-            if (doc == null)
-            {
-                _logger.LogWarning("AI Search でドキュメントが見つかりません: {ResultId}", pick.ResultId);
-                continue;
+                var parts = item.DocumentId.Split("_scene_", 2);
+                videoId = parts.Length > 1 ? parts[0] : item.DocumentId;
             }
 
-            var title = availableVideos.TryGetValue(doc.VideoId, out var t) ? t : doc.VideoId;
+            var title = availableVideos.TryGetValue(videoId, out var t) ? t : videoId;
             scenes.Add(new SceneResult
             {
-                VideoId     = doc.VideoId,
+                VideoId     = videoId,
                 Title       = title,
-                Start       = MsToTimeString(doc.BeginMs),
-                End         = MsToTimeString(doc.EndMs),
+                Start       = MsToTimeString(item.StartMs),
+                End         = MsToTimeString(item.EndMs),
                 Confidence  = Math.Max(0.1, 1.0 - (i * 0.1)),
-                Evidence    = pick.Evidence,
-                Description = doc.SceneSummary,
-                Mode        = doc.DocumentType,
-                SceneId     = doc.SceneId ?? doc.VideoId,
-                DocumentId  = pick.ResultId,
+                Evidence    = item.Evidence ?? "",
+                Description = item.SceneSummary ?? "",
+                Mode        = item.DocumentType ?? "visual",
+                SceneId     = item.DocumentId,
+                DocumentId  = item.DocumentId,
             });
         }
 
@@ -151,22 +148,19 @@ public class FoundryAgentClient : IFoundryAgentClient
     }
 
     /// <summary>
-    /// AI Search 検索結果を含むユーザーメッセージを構築する。
-    /// エージェントは提供されたコンテキストから選択するだけなので ID の捕洩を防止できる。
+    /// Hosted Agent へ送信するユーザーメッセージを構築する。
+    /// AI Search はエージェント側が Toolbox MCP 経由で実行するため、
+    /// ここでは検索コンテキストは含めずクエリと動画リストのみを送信する。
     /// </summary>
-    private static string BuildUserMessage(string query, Dictionary<string, string> availableVideos, string contextText)
+    private static string BuildUserMessage(string query, Dictionary<string, string> availableVideos)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         if (availableVideos.Count > 0)
         {
             sb.AppendLine("Available videos:");
             foreach (var v in availableVideos) sb.AppendLine($"- {v.Key}: {v.Value}");
             sb.AppendLine();
         }
-        sb.AppendLine("[Azure AI Search 取得済みコンテキスト]");
-        sb.AppendLine(contextText);
-        sb.AppendLine("[/Azure AI Search 取得済みコンテキスト]");
-        sb.AppendLine();
         sb.Append($"User query: {query}");
         return sb.ToString();
     }
@@ -213,3 +207,4 @@ public class FoundryAgentClient : IFoundryAgentClient
         return $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 }
+

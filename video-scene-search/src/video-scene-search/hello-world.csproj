@@ -13,9 +13,11 @@
 
   <ItemGroup>
     <!-- Agent Framework hosting — provides AgentHost, AddFoundryResponses, MapFoundryResponses -->
-    <PackageReference Include="Microsoft.Agents.AI.Foundry.Hosting" Version="1.3.0-preview.260423.1" />
+    <PackageReference Include="Microsoft.Agents.AI.Foundry.Hosting" Version="1.11.1-preview.260625.1" />
     <!-- Foundry SDK — provides AIProjectClient and AsAIAgent -->
-    <PackageReference Include="Azure.AI.Projects" Version="2.1.0-beta.1" />
+    <PackageReference Include="Azure.AI.Projects" Version="2.1.0-beta.3" />
+    <!-- MCP C# SDK — provides McpClient, HttpClientTransport, McpClientTool (: AIFunction) -->
+    <PackageReference Include="ModelContextProtocol.Core" Version="1.4.0" />
   </ItemGroup>
 
 </Project>
