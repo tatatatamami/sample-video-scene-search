@@ -7,7 +7,7 @@
 
 Usage:
     python upload_to_aisearch.py \\
-        --file             output/マイクラ/keyframe_docs.json \\
+        --file             output/myvideo/keyframe_docs.json \\
         --search-endpoint  https://<name>.search.windows.net \\
         --index-name       video-scenes \\
         --embedding-endpoint   https://<resource>.services.ai.azure.com \\
@@ -15,7 +15,7 @@ Usage:
 
     # ベクトル計算をスキップしてキーワード検索のみの場合
     python upload_to_aisearch.py \\
-        --file             output/マイクラ/keyframe_docs.json \\
+        --file             output/myvideo/keyframe_docs.json \\
         --search-endpoint  https://<name>.search.windows.net \\
         --index-name       video-scenes \\
         --skip-vectorization

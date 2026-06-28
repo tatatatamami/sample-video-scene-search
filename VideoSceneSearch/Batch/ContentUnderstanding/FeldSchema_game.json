@@ -9,7 +9,7 @@
       "description": {
         "type": "string",
         "method": "generate",
-        "description": "Provide a detailed natural-language description (3-5 sentences) of what is visually happening in this frame. This description is used for semantic search, so be specific and thorough. Include: (1) the main visual content (biome, structure, character, mob, etc.), (2) any visible block types, item names, mob names, or structure names, (3) visible UI elements (hotbar, health/hunger bar, XP bar, inventory, crafting screen, etc.), (4) the game mode or context if identifiable (survival, creative, adventure, spectator, title screen, cinematic), (5) notable actions or events occurring (building, mining, fighting, exploring, spawning). Write in Japanese. Do not omit visible text that helps identify the scene."
+        "description": "Provide a detailed natural-language description (3-5 sentences) of what is visually happening in this frame. This description is used for semantic search, so be specific and thorough. Include: (1) the main visual content (environment, characters, structures, etc.), (2) any visible character names, item names, or location names shown in the game, (3) visible UI elements (HUD, health bar, inventory, crafting screen, etc.), (4) the game mode or context if identifiable, (5) notable actions or events occurring (combat, exploration, building, etc.). Write in Japanese. Do not omit visible text that helps identify the scene."
       },
       "subject": {
         "type": "string",
@@ -56,17 +56,17 @@
         "type": "string",
         "method": "classify",
         "enum": [
-          "OVERWORLD_EXPLORATION",
+          "OUTDOOR_EXPLORATION",
           "CAVE_MINING",
           "BUILDING",
           "COMBAT",
-          "NETHER",
-          "THE_END",
+          "SPECIAL_ZONE",
+          "FINAL_ZONE",
           "INVENTORY_UI",
           "CRAFTING_UI",
           "TITLE_SCREEN",
           "CUTSCENE",
-          "VILLAGE",
+          "NPC_AREA",
           "STRUCTURE_INTERIOR",
           "WATER_SCENE",
           "NIGHT_SCENE",
@@ -80,12 +80,12 @@
         "items": {
           "type": "string",
           "enum": [
-            "CREEPER",
+            "ENEMY_A",
             "ZOMBIE",
             "SKELETON",
-            "ENDERMAN",
-            "ENDER_DRAGON",
-            "WITHER",
+            "ENEMY_B",
+            "BOSS_A",
+            "BOSS_B",
             "VILLAGER",
             "ANIMAL_MOB",
             "CHEST",
@@ -120,10 +120,10 @@
           "SWAMP",
           "OCEAN",
           "BEACH",
-          "NETHER_WASTES",
-          "CRIMSON_FOREST",
-          "SOUL_SAND_VALLEY",
-          "THE_END",
+          "VOLCANIC_ZONE",
+          "SPECIAL_FOREST",
+          "UNDERGROUND_ZONE",
+          "END_ZONE",
           "CAVE",
           "UNKNOWN"
         ],
@@ -141,7 +141,7 @@
           "OPENING",
           "UNKNOWN"
         ],
-        "description": "Minecraft game mode most likely shown in the frame."
+        "description": "Game mode most likely shown in the frame."
       }
     },
     "definitions": {}

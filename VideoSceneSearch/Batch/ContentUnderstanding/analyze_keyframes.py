@@ -151,7 +151,7 @@ def build_cu_fieldschema(schema: dict) -> dict:
 def put_analyzer(endpoint: str, token: str, analyzer_id: str, fieldschema: dict, model: str = "gpt-4.1") -> None:
     """
     Content Understanding Analyzer を作成または更新する（PUT は idempotent）。
-    201 Created の場合は Operation-Location をポーリングして作成完了を待つ。
+    2 Operation-Location が返された場合は、Analyzerの作成・置換完了までポーリングする。
     """
     # allowReplace=true: 既存の Analyzer を上書き可能にする。
     # PUT は idempotent であり、同じ定義での再実行は安全。

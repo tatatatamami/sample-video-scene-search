@@ -51,20 +51,20 @@
 .EXAMPLE
     # キーフレーム単位（デフォルト）
     .\run_scene_aggregate.ps1 `
-        --InsightsFile        "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir           "output\マイクラ" `
+        --InsightsFile        "input\_Insights\video_insights.json" `
+        --CuOutputDir         "..\.ContentUnderstanding\output\myvideo" `
+        --OutputDir           "output\myvideo" `
         --SearchEndpoint      "https://<name>.search.windows.net" `
         --KeyframeIndexName   "video-scenes" `
         --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
         --EmbeddingDeployment "text-embedding-3-small"
 
     # シーン単位
-    .\run_scene_aggregate.ps1 `
+    .\.run_scene_aggregate.ps1 `
         --Unit scene `
-        --InsightsFile        "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir           "output\マイクラ" `
+        --InsightsFile        "input\_Insights\video_insights.json" `
+        --CuOutputDir         "..\.ContentUnderstanding\output\myvideo" `
+        --OutputDir           "output\myvideo" `
         --SearchEndpoint      "https://<name>.search.windows.net" `
         --SceneIndexName      "video-scenes-scene" `
         --EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
@@ -78,9 +78,9 @@
     # -- Step 1: keyframe を登録 --
     .\run_scene_aggregate.ps1 `
         -Unit keyframe `
-        -InsightsFile        "input\_Insights\minecraft_insights.json" `
-        -CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
-        -OutputDir           "output\マイクラ" `
+        -InsightsFile        "input\_Insights\video_insights.json" `
+        -CuOutputDir         "..\ContentUnderstanding\output\myvideo" `
+        -OutputDir           "output\myvideo" `
         -SearchEndpoint      "https://<name>.search.windows.net" `
         -KeyframeIndexName   "video-scenes" `
         -EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
@@ -89,9 +89,9 @@
     # -- Step 2: scene を登録（同じインデックス名を指定）--
     .\run_scene_aggregate.ps1 `
         -Unit scene `
-        -InsightsFile        "input\_Insights\minecraft_insights.json" `
-        -CuOutputDir         "..\ContentUnderstanding\output\マイクラ" `
-        -OutputDir           "output\マイクラ" `
+        -InsightsFile        "input\_Insights\video_insights.json" `
+        -CuOutputDir         "..\ContentUnderstanding\output\myvideo" `
+        -OutputDir           "output\myvideo" `
         -SearchEndpoint      "https://<name>.search.windows.net" `
         -SceneIndexName      "video-scenes" `
         -EmbeddingEndpoint   "https://<resource>.services.ai.azure.com" `
@@ -99,9 +99,9 @@
 
     # アップロードをスキップして中間ファイルだけ生成
     .\run_scene_aggregate.ps1 `
-        --InsightsFile "input\_Insights\minecraft_insights.json" `
-        --CuOutputDir  "..\ContentUnderstanding\output\マイクラ" `
-        --OutputDir    "output\マイクラ" `
+        --InsightsFile "input\_Insights\video_insights.json" `
+        --CuOutputDir  "..\ContentUnderstanding\output\myvideo" `
+        --OutputDir    "output\myvideo" `
         --SkipUpload
 #>
 
