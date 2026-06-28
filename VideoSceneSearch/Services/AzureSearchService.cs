@@ -1,4 +1,4 @@
-﻿using Azure.AI.OpenAI;
+using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
@@ -15,6 +15,10 @@ public interface IAzureSearchService
     /// Azure AI Search でハイブリッド検索（テキスト＋ベクトル）を実行し、
     /// エージェントに渡す取得済みコンテキスト文字列を返す。
     /// </summary>
+    /// <param name="documentTypeFilter">
+    /// OData フィルターに追加する documentType 値（"scene" / "keyframe" / null=両方）。
+    /// 統合インデックスで scene と keyframe を使い分ける場合に指定します。
+    /// </param>
     Task<string> SearchAsync(
         string query,
         string? videoIdFilter = null,
@@ -60,7 +64,8 @@ public class AzureSearchService : IAzureSearchService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Azure AI Search: query={Query}, videoFilter={VideoFilter}, typeFilter={TypeFilter}", query, videoIdFilter, documentTypeFilter);
+            "Azure AI Search: query={Query}, videoFilter={VideoFilter}, typeFilter={TypeFilter}",
+            query, videoIdFilter, documentTypeFilter);
 
         // クエリをベクトル化
         var embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
@@ -92,7 +97,7 @@ public class AzureSearchService : IAzureSearchService
         });
 
         // videoId フィルターと documentType フィルターを AND で結合
-        var filterParts = new System.Collections.Generic.List<string>();
+        var filterParts = new List<string>();
         if (!string.IsNullOrEmpty(videoIdFilter))
             filterParts.Add($"videoId eq '{EscapeODataString(videoIdFilter)}'");
         if (!string.IsNullOrEmpty(documentTypeFilter))
