@@ -121,7 +121,13 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
             #      誤った意味でシーン人物をコピーするより空配列が安全。
             "scenePeople":   list(scene.get("people") or []),
             "visiblePeople": [],
-            "search_text":  build_keyframe_search_text(scene, keyframe),
+            "search_text":  build_keyframe_search_text(
+                scene,
+                keyframe,
+                document_id=f"{scene_id}_keyframe_{keyframe_id}",
+                begin_ms=begin_ms,
+                end_ms=end_ms,
+            ),
         })
 
     return documents

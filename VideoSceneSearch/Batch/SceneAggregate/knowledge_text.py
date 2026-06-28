@@ -167,6 +167,14 @@ def build_scene_search_text(scene: Dict[str, Any]) -> str:
     Foundry Toolbox の Azure AI Search MCP ツールが返す content テキストから
     Hosted Agent が videoId / beginMs / endMs / documentType などを抽出できる。
 
+    Azure AI Search ではこれらの値を専用の構造化フィールドとして保持することが
+    一般的だが、Toolbox 経由の検索結果（content テキスト）を受け取る Hosted Agent が
+    確実にメタデータを参照できるよう、search_text の先頭にも機械可読な形式で埋め込む。
+    これは Agent 連携のための互換レイヤーであり、一般的な検索精度向上策ではない。
+
+    search_text を変更した場合は、ベクトルを再生成してドキュメントを
+    再アップロードする必要がある（Azure AI Search の再インデックスのみでは不十分）。
+
     シーン全体の内容（全キーフレームの画像説明を含む）を検索対象とする。
     会話・出来事を探す用途に適している。
     """
@@ -178,7 +186,7 @@ def build_scene_search_text(scene: Dict[str, Any]) -> str:
     parts.append(f"videoId: {scene.get('videoId', '')}")
     parts.append(f"beginMs: {scene.get('beginMs', 0)}")
     parts.append(f"endMs: {scene.get('endMs', 0)}")
-    parts.append(f"documentType: visual")  # シーンドキュメントは常に visual（映像）型
+    parts.append(f"documentType: scene")   # 構造化フィールドの documentType と一致させる
     parts.append("[/文書メタデータ]")
 
     append_text(parts, "シーン要約", scene.get("scene_summary"))
@@ -190,7 +198,14 @@ def build_scene_search_text(scene: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def build_keyframe_search_text(scene: Dict[str, Any], keyframe: Dict[str, Any]) -> str:
+def build_keyframe_search_text(
+    scene: Dict[str, Any],
+    keyframe: Dict[str, Any],
+    *,
+    document_id: str,
+    begin_ms: int,
+    end_ms: int,
+) -> str:
     """
     キーフレーム検索ドキュメント用 search_text を生成する。
 
@@ -202,7 +217,16 @@ def build_keyframe_search_text(scene: Dict[str, Any], keyframe: Dict[str, Any]) 
     """
     parts: List[str] = []
 
-    # キーフレーム固有情報を先頭に（最重要）
+    # --- 構造化メタデータヘッダー (MCP ツール応答からエージェントが抽出する) ---
+    parts.append("[文書メタデータ]")
+    parts.append(f"id: {document_id}")
+    parts.append(f"videoId: {scene.get('videoId', '')}")
+    parts.append(f"beginMs: {begin_ms}")
+    parts.append(f"endMs: {end_ms}")
+    parts.append("documentType: keyframe")
+    parts.append("[/文書メタデータ]")
+
+    # キーフレーム固有情報（最重要）
     parts.extend(build_keyframe_visual_parts(keyframe))
 
     # 親シーン要約
