@@ -1,5 +1,5 @@
 # =============================================================================
-# GPT-4.1 Vision - Batch Image Analysis Script
+# Batch Image Analysis Script
 # =============================================================================
 # Usage:
 #   .\run-batch.ps1 -InputDir "input\MyVideoKeyFrames" -OutputDir "output\MyVideo" -SchemaFile "FeldSchema_sample.json"
