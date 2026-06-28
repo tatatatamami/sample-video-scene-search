@@ -122,7 +122,7 @@ const string instructions = """
           "startMs": <beginMs as integer from [文書メタデータ] block, or 0 if not found>,
           "endMs": <endMs as integer from [文書メタデータ] block, or 0 if not found>,
           "sceneSummary": "<scene summary from シーン要約 section in the result>",
-          "documentType": "<documentType from [文書メタデータ] block, default 'visual'>",
+          "documentType": "<documentType from [文書メタデータ] block, default 'scene'>",
           "evidence": "<detailed explanation in Japanese of why this scene matches the user query>"
         }
       ]

@@ -21,12 +21,11 @@ resources:
 environment_variables:
     - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
       value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
-    # TOOLBOX_ENDPOINT: full MCP URL for the Toolbox (no FOUNDRY_ prefix — platform reserves that namespace).
-    # Required headers for all MCP requests: Foundry-Features: Toolboxes=V1Preview
-    # + Bearer token with scope https://ai.azure.com/.default
-    # Alternatively set TOOLBOX_NAME to derive the URL from FOUNDRY_PROJECT_ENDPOINT at startup.
-    - name: TOOLBOX_ENDPOINT
-      value: "https://ti-demo-ai-agents-swc-foundry.services.ai.azure.com/api/projects/proj-default/toolboxes/video-scene-toolbox/mcp?api-version=v1"
+    # TOOLBOX_NAME: Foundry Toolbox の論理名。Program.cs 起動時に
+    # FOUNDRY_PROJECT_ENDPOINT と組み合わせて MCP URL を導出する。
+    # フル URL を直接指定する場合は TOOLBOX_ENDPOINT を使用（TOOLBOX_NAME より優先）。
+    - name: TOOLBOX_NAME
+      value: video-scene-toolbox
 code_configuration:
     runtime: dotnet_10
     entry_point: hello-world.dll

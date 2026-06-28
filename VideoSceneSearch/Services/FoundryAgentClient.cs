@@ -132,10 +132,11 @@ public class FoundryAgentClient : IFoundryAgentClient
                 Title       = videoId, // Program.cs で officialTitle に上書きされる
                 Start       = MsToTimeString(item.StartMs),
                 End         = MsToTimeString(item.EndMs),
+                // Confidence: 検索順位ベースの表示用仮値（AI Search のスコアではない）
                 Confidence  = Math.Max(0.1, 1.0 - (i * 0.1)),
                 Evidence    = item.Evidence ?? "",
                 Description = item.SceneSummary ?? "",
-                Mode        = item.DocumentType ?? "visual",
+                Mode        = item.DocumentType ?? "scene",  // デフォルトは scene（シーンドキュメントの documentType に導常）
                 SceneId     = item.DocumentId,
                 DocumentId  = item.DocumentId,
             });
