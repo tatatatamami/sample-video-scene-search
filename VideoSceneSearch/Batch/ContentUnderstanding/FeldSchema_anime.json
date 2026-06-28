@@ -14,7 +14,7 @@
 			"subject": {
 				"type": "string",
 				"method": "classify",
-				"enum": ["GIGI", "HATHAWAY", "KENNETH", "GUNDAM", "MOBILE_SUIT", "HUMAN_FACE", "MULTIPLE_CHARACTERS", "NO_CLEAR_SUBJECT"],
+				"enum": ["CHARACTER_A", "CHARACTER_B", "CHARACTER_C", "MECHA", "HUMAN_FACE", "MULTIPLE_CHARACTERS", "NO_CLEAR_SUBJECT"],
 				"description": "Primary visible subject of the frame."
 			},
 			"shot_type": {
@@ -32,7 +32,7 @@
 			"scene_type": {
 				"type": "string",
 				"method": "classify",
-				"enum": ["DIALOGUE", "CHARACTER_REACTION", "ACTION", "BATTLE", "MOBILE_SUIT_APPEARANCE", "EXPLOSION", "FLASHBACK", "TITLE_CARD", "ENVIRONMENT", "UNKNOWN"],
+				"enum": ["DIALOGUE", "CHARACTER_REACTION", "ACTION", "BATTLE", "MECHA_APPEARANCE", "EXPLOSION", "FLASHBACK", "TITLE_CARD", "ENVIRONMENT", "UNKNOWN"],
 				"description": "Scene category of the frame."
 			},
 			"objects": {
@@ -40,7 +40,7 @@
 				"method": "generate",
 				"items": {
 					"type": "string",
-					"enum": ["GUNDAM", "MOBILE_SUIT", "FACE", "TEARS", "WEAPON", "EXPLOSION", "TEXT_ON_SCREEN", "VEHICLE", "BUILDING", "SKY"]
+					"enum": ["MECHA_A", "MECHA_B", "FACE", "TEARS", "WEAPON", "EXPLOSION", "TEXT_ON_SCREEN", "VEHICLE", "BUILDING", "SKY"]
 				},
 				"description": "Return zero or more clearly visible objects or entities from the enum list only. If none apply, return an empty list."
 			}
