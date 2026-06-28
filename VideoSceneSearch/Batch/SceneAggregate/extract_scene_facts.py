@@ -2,16 +2,24 @@
 # -*- coding: utf-8 -*-
 
 """
-Video Indexer (insights) JSON から Scene 単位の事実ドキュメントを生成する。
+Azure AI Video Indexer (insights) JSON から Scene 単位の事実ドキュメントを生成する。
 
-追加対応:
+Input : Azure AI Video Indexer のエクスポート JSON
+        (ポータル > Video 詳細 > [Insights] タブ > JSON ファイル)
+Output: scene_facts.json  (1 シーン = 1 ドキュメント)
+
+集約項目:
 - transcript_text 集約
 - keyframes に thumbnailId / imagePath を追加
 - representativeImagePath を追加
 - faces / namedPeople / detectedObjects を集約
 
-Input : Video Indexer export JSON
-Output: scene_facts.json  (1 scene = 1 doc)
+Usage:
+  python extract_scene_facts.py \\
+    --input  "input/MyVideo/insights.json" \\
+    --output "output/MyVideo/scene_facts.json" \\
+    [--thumbnail-dir  "input/MyVideo/_KeyFrameThumbnail"] \\
+    [--video-index 0]
 """
 
 import argparse
@@ -376,7 +384,9 @@ def aggregate_scene_facts(
             f"video_index {video_index} is out of range (videos has {len(videos)} entries)"
         )
     video = videos[video_index]
-    video_id = str(video.get("id", ""))
+    video_id = str(video.get("id") or "")
+    if not video_id:
+        raise ValueError(f"videos[{video_index}] has no 'id' field")
 
     insights = video.get("insights")
     if insights is None:
@@ -488,7 +498,7 @@ def non_negative_int(value: str) -> int:
     """argparse type checker: 0 以上の整数のみ受け付ける。"""
     number = int(value)
     if number < 0:
-        raise argparse.ArgumentTypeError("value must be zero or greater")
+        raise argparse.ArgumentTypeError("値は 0 以上の整数である必要があります。")
     return number
 
 
