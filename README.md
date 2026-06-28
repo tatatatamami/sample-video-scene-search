@@ -4,12 +4,12 @@ Azure AI Foundry Hosted Agent と Azure AI Search を活用した、動画のシ
 
 ## 概要
 
-動画を Azure Video Indexer で解析し、各キーフレームを Azure Content Understanding で構造化分析します。結果を Azure AI Search の統合インデックスに登録することで、自然言語の質問に対して最も関連性の高いシーンを返します。
+動画を Azure Video Indexer で解析し、各キーフレームを Azure AI Content Understanding で構造化分析します。結果を Azure AI Search の統合インデックスに登録することで、自然言語の質問に対して最も関連性の高いシーンを返します。
 
 ```
 Azure AI Video Indexer
   ↓ シーン・字幕・人物・OCR・キーフレーム抽出
-Azure Content Understanding
+Azure AI Content Understanding
   ↓ キーフレーム画像の構造化分析
 build_knowledge.py
   ↓ scene_docs.json / keyframe_docs.json
@@ -30,8 +30,8 @@ Microsoft Foundry Hosted Agent
 |---|---|
 | Web アプリ | ASP.NET Core 8 Razor Pages |
 | AI エージェント | Azure AI Foundry Hosted Agent |
-| AI クライアント | OpenAI .NET SDK v2 (ResponsesClient) |
-| キーフレーム解析 | Azure Content Understanding（`prebuilt-image` ベースアナライザー） |
+| AI クライアント | HttpClient（Responses API 直接呼び出し） |
+| キーフレーム解析 | Azure AI Content Understanding（`prebuilt-image` ベースアナライザー） |
 | 動画解析 | Azure Video Indexer |
 | 検索インデックス | Azure AI Search（BM25 + HNSW ハイブリッド + セマンティックランカー） |
 | Embedding | Azure OpenAI text-embedding-3-small |
@@ -47,7 +47,7 @@ Microsoft Foundry Hosted Agent
 - Python 3.9+（バッチ処理用）
 - Azure AI Foundry プロジェクト
 - Azure AI Search サービス
-- Azure Content Understanding 対応の Azure AI サービスリソース
+- Azure AI Content Understanding 対応の Azure AI サービスリソース
 
 ---
 
@@ -86,13 +86,6 @@ https://{resource}.services.ai.azure.com/api/projects/{project}/agents/video-sce
   "AzureAIFoundry": {
     "Endpoint": "https://YOUR-RESOURCE.services.ai.azure.com/api/projects/YOUR-PROJECT/agents/video-scene-search/endpoint/protocols/openai?api-version=v1",
     "ModelDeploymentName": "gpt-4.1"
-  },
-  "AzureAISearch": {
-    "Endpoint": "https://YOUR-SEARCH-SERVICE.search.windows.net",
-    "IndexName": "video-scenes",
-    "EmbeddingEndpoint": "https://YOUR-AI-RESOURCE.openai.azure.com",
-    "EmbeddingDeployment": "text-embedding-3-small",
-    "TopK": 10
   }
 }
 ```
@@ -100,13 +93,8 @@ https://{resource}.services.ai.azure.com/api/projects/{project}/agents/video-sce
 または環境変数で設定する場合（`:` の区切りは `__` に変換）：
 
 ```powershell
-$env:AzureAIFoundry__Endpoint          = "https://..."
-$env:AzureAIFoundry__ModelDeploymentName = "gpt-4.1"
-$env:AzureAISearch__Endpoint           = "https://YOUR-SEARCH-SERVICE.search.windows.net"
-$env:AzureAISearch__IndexName          = "video-scenes"
-$env:AzureAISearch__EmbeddingEndpoint  = "https://YOUR-AI-RESOURCE.openai.azure.com"
-$env:AzureAISearch__EmbeddingDeployment = "text-embedding-3-small"
-$env:AzureAISearch__TopK               = "10"
+$env:AzureAIFoundry__Endpoint              = "https://..."
+$env:AzureAIFoundry__ModelDeploymentName   = "gpt-4.1"
 ```
 
 > **認証**: Web アプリは `DefaultAzureCredential` を使用します（API キー不要）。ローカル開発では `az login` 済みであれば追加設定は不要です。Azure 上（App Service など）では Managed Identity を割り当てることで `az login` なしで動作します。
@@ -117,12 +105,12 @@ $env:AzureAISearch__TopK               = "10"
 
 | コンポーネント | 対象リソース | 必要なロール |
 |-------------|------------|------------|
-| Web アプリ（`DefaultAzureCredential`） | Azure AI Search | `Search Index Data Reader` |
-| Web アプリ（`DefaultAzureCredential`） | Azure OpenAI | `Cognitive Services OpenAI User` |
 | Web アプリ（`DefaultAzureCredential`） | Azure AI Foundry | `Azure AI Developer` |
 | バッチスクリプト（`az account get-access-token`） | Azure AI Search | `Search Index Data Contributor` |
 | バッチスクリプト（`az account get-access-token`） | Azure OpenAI | `Cognitive Services OpenAI User` |
-| `analyze_keyframes.py`（`DefaultAzureCredential`） | Azure Content Understanding | `Cognitive Services User` |
+| `analyze_keyframes.py`（`DefaultAzureCredential`） | Azure AI サービス | `Cognitive Services User` |
+
+> Hosted Agent の Azure AI Search・Azure OpenAI へのアクセスは `infra/` の Bicep でプロビジョニング済みです。
 
 - **ローカル開発**: `az login` で認証した ID に上記ロールを付与してください
 - **Azure デプロイ**: Managed Identity に上記ロールを付与してください（`az login` 不要）
@@ -145,7 +133,7 @@ dotnet run
 ```
 VideoSceneSearch/Batch/
 ├── ContentUnderstanding/
-│   ├── analyze_keyframes.py       # Azure Content Understanding でキーフレーム解析
+│   ├── analyze_keyframes.py       # Azure AI Content Understanding でキーフレーム解析
 │   ├── FeldSchema_sample.json     # フィールドスキーマ（サンプル）
 │   ├── input/
 │   │   └── _KeyFrameThumbnail/    # Video Indexer から取得したキーフレーム画像（.jpg）
@@ -161,11 +149,11 @@ VideoSceneSearch/Batch/
     └── output/                    # 生成ドキュメント（gitignore）
 ```
 
-### Step 1: キーフレーム画像の解析（Azure Content Understanding）
+### Step 1: キーフレーム画像の解析（Azure AI Content Understanding）
 
-Azure Content Understanding を使用して、Video Indexer が抽出したキーフレーム画像を構造化分析します。
+Azure AI Content Understanding を使用して、Video Indexer が抽出したキーフレーム画像を構造化分析します。
 
-- **サービス**: Azure Content Understanding
+- **サービス**: Azure AI Content Understanding
 - **基底アナライザー**: `prebuilt-image`
 - **completion model**: Analyzer 定義（`FeldSchema_*.json`）で指定するモデル（例: `gpt-4.1`）
 - **入力**: Video Indexer が抽出したキーフレーム画像（`.jpg`）
@@ -297,13 +285,12 @@ sample-video-scene-search/
 │   ├── Program.cs                       # アプリエントリポイント・DI 設定
 │   ├── Pages/Index.cshtml               # 検索 UI（Razor Pages）
 │   ├── Services/FoundryAgentClient.cs   # Foundry Hosted Agent クライアント
-│   ├── Services/AzureSearchService.cs   # Azure AI Search 検索サービス
 │   ├── Models/                          # データモデル
 │   ├── videomapping.json                # 動画マッピング設定
 │   ├── appsettings.json                 # 基本設定（プレースホルダー）
 │   ├── appsettings.Development.json     # ローカル開発設定（gitignore）
 │   └── Batch/
-│       ├── ContentUnderstanding/        # Azure Content Understanding キーフレーム解析
+│       ├── ContentUnderstanding/        # Azure AI Content Understanding キーフレーム解析
 │       └── SceneAggregate/              # ナレッジ統合・AI Search 登録
 └── video-scene-search/                  # Foundry Hosted Agent（azd プロジェクト）
     ├── azure.yaml                       # azd サービス定義
@@ -321,11 +308,6 @@ sample-video-scene-search/
 |---------|------|-----|
 | `AzureAIFoundry:Endpoint` | Foundry Hosted Agent のエンドポイント URL | `https://YOUR-RESOURCE.services.ai.azure.com/api/projects/YOUR-PROJECT/agents/video-scene-search/endpoint/protocols/openai?api-version=v1` |
 | `AzureAIFoundry:ModelDeploymentName` | エージェントが使用するモデルデプロイ名 | `gpt-4.1` |
-| `AzureAISearch:Endpoint` | Azure AI Search サービスエンドポイント | `https://YOUR-SEARCH-SERVICE.search.windows.net` |
-| `AzureAISearch:IndexName` | 検索対象のインデックス名 | `video-scenes` |
-| `AzureAISearch:EmbeddingEndpoint` | クエリベクトル化に使用する Azure OpenAI エンドポイント | `https://YOUR-AI-RESOURCE.openai.azure.com` |
-| `AzureAISearch:EmbeddingDeployment` | Embedding モデルのデプロイメント名 | `text-embedding-3-small` |
-| `AzureAISearch:TopK` | 検索結果の最大取得件数 | `10` |
 
 設定の優先順位（後が優先）：`appsettings.json` → `appsettings.Development.json` → 環境変数 → `launchSettings.json`
 
@@ -336,11 +318,10 @@ sample-video-scene-search/
 このプロジェクトは PoC（概念実証）レベルの実装です。以下の点に注意してください。
 
 - **`visiblePeople` は現在未実装**: インデックスにフィールドは存在しますが、常に空配列となります
-- **人物フィルター**: `scenePeople` に対する OData 完全一致フィルター（`scenePeople/any(p: p eq '...')`）は実装されていますが、インデックスデータの充実度に依存します
-- **scene / keyframe のルーティング**: Web アプリからエージェントへのクエリに応じた `documentType` の絞り込みはキーワードベースで行われます
+- **人物フィルター**: Azure AI Search インデックスには `scenePeople` フィールドが `filterable` として定義されていますが、Toolbox MCP による検索クエリへの自動適用は未実装です
+- **scene / keyframe のルーティング**: クエリ内容に応じた `documentType` の絞り込みは Hosted Agent の指示（system instructions）に基づいて行われます
 - **アップロード処理のリトライ**: `upload_to_aisearch.py` の 429 対応・リトライ処理は PoC レベルです
-- **セマンティックランカー**: `AzureSearchService` は `semantic-config` という名前のセマンティック構成を使用します。インデックス側でセマンティック構成が未設定の場合は動作しません
-- **エージェントの回答**: Foundry Hosted Agent は AI Search の検索結果をコンテキストとして受け取り、`resultId` を選択します。タイムスタンプや動画 ID などのメタデータはエージェントが生成するのではなく、`resultId` をキーに AI Search 結果から解決されます。存在しない `resultId` が返された場合、そのシーンは表示されません
+- **エージェントの回答**: Hosted Agent が返す `documentId`・`videoId`・`startMs`/`endMs` を Web アプリが解析してシーン結果を構築します。Agent が空または不正な値を返した場合、そのシーンは表示されません
 - **エンドユーザー認証・認可**: 未実装
 - **動画のアップロード・加工・インデックス自動作成**: 未実装
 
