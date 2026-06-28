@@ -46,6 +46,7 @@ from typing import Any, Dict, List, Optional
 # 人物名エイリアスマッピング
 # face_name_aliases.json が存在する場合はそちらを優先して読み込む
 # (face_name_aliases.json は .gitignore 対象 - 個人名が含まれるため)
+# ファイルの内容については face_name_aliases.json.sample を参照
 # ---------------------------------------------------------------------------
 
 def _load_face_name_aliases() -> Dict[str, str]:
@@ -54,8 +55,10 @@ def _load_face_name_aliases() -> Dict[str, str]:
         try:
             with aliases_path.open(encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            print(f"Warning: Failed to load face_name_aliases.json: {e}", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"Warning: face_name_aliases.json の JSON 解析に失敗しました: {e}", file=sys.stderr)
+        except OSError as e:
+            print(f"Warning: face_name_aliases.json の読み込みに失敗しました: {e}", file=sys.stderr)
     return {}
 
 
@@ -80,7 +83,11 @@ _OCR_MIN_CHARS = 3
 
 
 def filter_ocr_text(raw_ocr: str) -> str:
-    """ゲームUIノイズ（数字のみ行・ボタンラベル等）を除去した意味のあるOCRテキストを返す。"""
+    """ゲームUIノイズ（数字のみ行・ボタンラベル等）を除去した意味のあるOCRテキストを返す。
+
+    Note: フィルターパターンはゲーム映像向けのノイズ定義（_OCR_NOISE_LINE）に基づく。
+    他ジャンルへ適用する場合は _OCR_NOISE_LINE 正規表現を編集すること。
+    """
     lines = raw_ocr.splitlines()
     filtered: List[str] = []
     for line in lines:
@@ -224,6 +231,11 @@ def build_canonical_scenes(
 
     with open(scene_facts_path, encoding="utf-8") as f:
         scene_facts: List[Dict[str, Any]] = json.load(f)
+
+    if not isinstance(scene_facts, list):
+        raise ValueError(
+            f"{scene_facts_path} のデータが正しくありません。配列（JSON array）である必要があります。"
+        )
 
     cu_index = load_cu_index(cu_output_dir)
     print(f"ContentUnderstanding index: {len(cu_index)} entries", file=sys.stderr)
