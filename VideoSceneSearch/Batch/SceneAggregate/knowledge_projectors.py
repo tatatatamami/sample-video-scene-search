@@ -15,20 +15,23 @@ Canonical Scene Knowledge（knowledge_normalizer.py の出力）を受け取り�
   Azure AI Search の Parent-Child パターン（Index Projections）を参考に、
   アプリケーション側でシーン／キーフレーム単位の検索ドキュメントを生成する。
 
-  現在のアップロード先は Foundry File Search（Vector Store）であり、
-  Azure AI Search の Index Projections 機能そのものを使用しているわけではない。
-  そのため以下の点に留意が必要:
+  アップロード先:
+    - Azure AI Search（主要パス）: upload_to_aisearch.py を使用。
+      技能フィールド、ベクトル橏、documentType によるフィルターが利用可能。
+    - Foundry File Search（Vector Store）（並列選泯）: upload_to_vectorstore.py を使用。
+      ファイル単位でアップロードし、Foundry のベクトルストアで管理する。
+      ただし以下の制約がある:
 
-  - documentType フィールドは File Search ではフィルター不可（単なる文字列）。
-    "documentType eq 'keyframe'" 形式のフィルターは、将来 Azure AI Search の
-    カスタムインデックスへ移行した場合にのみ成立する。
+      - documentType フィールドは File Search ではフィルター不可（単なる文字列）。
+        "documentType eq 'keyframe'" 形式のフィルターは、Azure AI Search の
+        カスタムインデックスでのみ有効。
 
-  - JSON 配列の 1 要素 = 1 検索チャンクになる保証はない。
-    File Search はアップロードファイルを自動チャンク化（既定: 800 トークン、
-    400 オーバーラップ）するため、実際の検索粒度は File Search 側が決定する。
+      - JSON 配列の 1 要素 = 1 検索チャンクになる保証はない。
+        File Search はアップロードファイルを自動チャンク化（既定: 800 トークン、
+        400 オーバーラップ）するため、実際の検索粒度は File Search 側が決定する。
 
   厳密な 1 Scene / 1 Keyframe 単位での検索・フィルターが必要な場合は、
-  Azure AI Search のカスタムインデックスへの移行を検討すること。
+  Azure AI Search のカスタムインデックスを使用すること。
 """
 
 from typing import Any, Dict, List
@@ -97,6 +100,9 @@ def project_keyframe_documents(scene: Dict[str, Any]) -> List[Dict[str, Any]]:
         else:
             end_ms = (time_ms + keyframes[index + 1].get("timeMs", scene_end)) // 2
 
+        # keyframe_id の優先順: keyFrameId (Video Indexer 独自キー) →
+        #   thumbnailId (Video Indexer が keyframe に付与するサムネイル ID) →
+        #   連番フォールバック
         keyframe_id = (
             keyframe.get("keyFrameId")
             or keyframe.get("thumbnailId")
