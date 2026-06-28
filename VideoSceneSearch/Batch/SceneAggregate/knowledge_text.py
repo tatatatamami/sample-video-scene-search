@@ -21,6 +21,8 @@ _SENTINEL_VALUES = frozenset({"UNKNOWN", "NO_CLEAR_SUBJECT", "NEUTRAL", ""})
 # Analyzer固有フィールドの検索テキスト出力設定
 # field_name: display_label のマッピング。
 # 追加・削除することで、動画ごとの検索対象フィールドを調整できる。
+# 例: 他ジャンル向けに "weather" フィールドを追加する場合:
+#   SEARCHABLE_ANALYSIS_FIELDS["weather"] = "天候"
 SEARCHABLE_ANALYSIS_FIELDS: Dict[str, str] = {
     "scene_type": "シーンタイプ",
     "biome":      "バイオーム",
@@ -32,7 +34,11 @@ SEARCHABLE_ANALYSIS_FIELDS: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 def append_text(parts: List[str], label: str, value: Optional[str]) -> None:
-    """値が空でなければ 〖label〗value を parts に追加する。"""
+    """値が空でなければ 〖label〗value を parts に追加する。
+
+    〖〗（隙付き白鵒括弧）は AI Search のベクトル化テキスト内のセクション区切りマーカー。
+    ラテン文字が少な日本語テキストでもトークナイザが認識しやすい記号。
+    """
     text = (value or "").strip()
     if text:
         parts.append(f"〖{label}〗{text}")
@@ -66,7 +72,7 @@ def build_scene_summary(scene: Dict[str, Any]) -> str:
         if desc:
             parts.append(f"映像: {desc}")
 
-    # 音声の先頭80文字
+    # 音声の先頤80文字（サマリーの簡潔さを保つための上限）
     transcript = (scene.get("transcript_text") or "").strip()
     if transcript:
         short = transcript[:80].replace("\n", " ")
@@ -172,7 +178,7 @@ def build_scene_search_text(scene: Dict[str, Any]) -> str:
     parts.append(f"videoId: {scene.get('videoId', '')}")
     parts.append(f"beginMs: {scene.get('beginMs', 0)}")
     parts.append(f"endMs: {scene.get('endMs', 0)}")
-    parts.append(f"documentType: visual")
+    parts.append(f"documentType: visual")  # シーンドキュメントは常に visual（映像）型
     parts.append("[/文書メタデータ]")
 
     append_text(parts, "シーン要約", scene.get("scene_summary"))
