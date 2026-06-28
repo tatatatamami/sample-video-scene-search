@@ -4,19 +4,27 @@ Azure AI Foundry と GPT-4.1 Vision を活用した、動画のキーフレー�
 
 ## 概要
 
-動画を Azure Video Indexer で解析し、各シーンのキーフレームを GPT-4.1 Vision で詳細説明。結果を Azure AI Foundry のベクターストアに登録することで、エージェントが自然言語の質問に対して最も関連性の高いシーンを返します。
+動画を Azure Video Indexer で解析し、各シーンのキーフレームを GPT-4.1 Vision で詳細説明。結果を Azure AI Search の統合インデックスに登録することで、自然言語の質問に対して最も関連性の高いシーンを返します。
 
 ```
 動画ファイル
     ↓
-Azure Video Indexer（キーフレーム抽出・文字起こし・人物認識）
+Azure Video Indexer（シーン境界・人物・字幕・ラベルを抽出）
     ↓
-GPT-4.1 Vision（キーフレーム画像の詳細説明を生成）
+GPT-4.1 Vision（キーフレーム画像の詳細説明・ OCR ・シーン分析）
     ↓
-Azure AI Foundry ベクターストア（検索インデックス）
+SceneAggregate バッチ処理（情報統合 → Canonical Scene Knowledge）
+    ↓
+upload_to_aisearch.py（Embedding 生成 → Azure AI Search 登録）
+    ↓
+AzureSearchService（BM25 + HNSW ベクトル + セマンティックランカー）
+    ↓
+FoundryAgentClient（検索結果を Hosted Agent に渡し resultId で結果を拘束）
     ↓
 ASP.NET Core Razor Pages（チャット UI で自然言語検索）
 ```
+
+アーキテクチャの詳細（ナレッジ設計・検索フロー・エージェントの役割）は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
 
 ## 技術スタック
 
@@ -27,7 +35,8 @@ ASP.NET Core Razor Pages（チャット UI で自然言語検索）
 | AI クライアント | OpenAI .NET SDK v2 (ResponsesClient) |
 | 画像解析 | Azure OpenAI GPT-4.1 Vision |
 | 動画解析 | Azure Video Indexer |
-| ベクター検索 | Azure AI Foundry Vector Store |
+| 検索インデックス | Azure AI Search（BM25 + HNSW ハイブリッド + セマンティックランカー） |
+| Embedding | Azure OpenAI text-embedding-3-small |
 | 認証 | Azure.Identity / DefaultAzureCredential |
 
 ---
