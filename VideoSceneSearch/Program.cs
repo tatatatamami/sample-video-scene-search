@@ -21,9 +21,6 @@ builder.Configuration.AddJsonFile("videomapping.json", optional: true, reloadOnC
 builder.Services.Configure<VideoMappingSettings>(
     builder.Configuration);
 
-// AzureSearchService を Singleton として登録します。
-builder.Services.AddSingleton<IAzureSearchService, AzureSearchService>();
-
 // FoundryAgentClient を Singleton として登録します。
 // 内部で ResponsesClient を保持し、DefaultAzureCredential によるトークンキャッシュを活用します。
 builder.Services.AddSingleton<IFoundryAgentClient, FoundryAgentClient>();
@@ -72,7 +69,7 @@ app.MapPost("/api/scene-search", async (
             PropertyNameCaseInsensitive = true
         };
 
-        // Structured Output guarantees valid JSON — no markdown stripping needed
+        // Agent は JSON のみを返すよう instructions で指示済み。FoundryAgentClient 内でコードフェンスを除去済み。
         var sceneResponse = JsonSerializer.Deserialize<SceneSearchResponse>(jsonResult.Trim(), jsonOptions);
 
         if (sceneResponse?.Scenes == null || sceneResponse.Scenes.Count == 0)
