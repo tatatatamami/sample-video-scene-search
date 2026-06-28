@@ -301,38 +301,3 @@ sample-video-scene-search/
         ├── Program.cs                   # エージェント指示・ロジック
         └── agent.yaml                   # エージェント設定
 ```
-
----
-
-## 設定リファレンス
-
-| 設定キー | 説明 | 例 |
-|---------|------|-----|
-| `AzureAIFoundry:Endpoint` | Foundry Hosted Agent のエンドポイント URL | `https://YOUR-RESOURCE.services.ai.azure.com/api/projects/YOUR-PROJECT/agents/video-scene-search/endpoint/protocols/openai?api-version=v1` |
-| `AzureAIFoundry:ModelDeploymentName` | エージェントが使用するモデルデプロイ名 | `gpt-4.1` |
-
-設定の優先順位（後が優先）：`appsettings.json` → `appsettings.Development.json` → 環境変数 → `launchSettings.json`
-
----
-
-## 現在の制約・未実装事項
-
-このプロジェクトは PoC（概念実証）レベルの実装です。以下の点に注意してください。
-
-- **`visiblePeople` は現在未実装**: インデックスにフィールドは存在しますが、常に空配列となります
-- **人物フィルター**: Azure AI Search インデックスには `scenePeople` フィールドが `filterable` として定義されていますが、Toolbox MCP による検索クエリへの自動適用は未実装です
-- **scene / keyframe のルーティング**: クエリ内容に応じた `documentType` の絞り込みは Hosted Agent の指示（system instructions）に基づいて行われます
-- **アップロード処理のリトライ**: `upload_to_aisearch.py` の 429 対応・リトライ処理は PoC レベルです
-- **エージェントの回答**: Hosted Agent が返す `documentId`・`videoId`・`startMs`/`endMs` を Web アプリが解析してシーン結果を構築します。Agent が空または不正な値を返した場合、そのシーンは表示されません
-- **エンドユーザー認証・認可**: 未実装
-- **動画のアップロード・加工・インデックス自動作成**: 未実装
-
----
-
-## ライセンス
-
-MIT
-
-## 貢献
-
-Issue や Pull Request を歓迎します！
